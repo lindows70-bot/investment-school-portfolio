@@ -46,6 +46,9 @@
           <button class="nav-tab" data-view="lynch" title="피터린치 분석">
             <span class="icon">L</span><span>피터린치 분석</span>
           </button>
+          <button class="nav-tab" data-view="buffett" title="워렌버핏 분석">
+            <span class="icon">B</span><span>워렌버핏 분석</span>
+          </button>
         </nav>
 
         <section class="panel compact">
@@ -329,6 +332,91 @@
                   </tr>
                 </thead>
                 <tbody id="lynchRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel lynch-health-panel">
+            <div class="section-title">
+              <h2>재무건전성 분석</h2>
+              <span class="muted">Lynch: 부채 없는 회사는 망하지 않는다</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>종목</th>
+                    <th>D/E 비율</th>
+                    <th>현금 보유</th>
+                    <th>총 부채</th>
+                    <th>순현금 여부</th>
+                    <th>Lynch 등급</th>
+                  </tr>
+                </thead>
+                <tbody id="lynchHealthRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="buffettView" class="view">
+          <section class="lynch-hero">
+            <div>
+              <p class="eyebrow">WARREN BUFFETT CHECK</p>
+              <h2>워렌버핏 분석</h2>
+              <p>경제적 해자, 수익성, 부채 안정성, 가격 규율 관점에서 내 포트폴리오를 점검합니다.</p>
+            </div>
+            <button id="refreshBuffett" class="ghost-button">분석 새로고침</button>
+          </section>
+
+          <section class="lynch-summary-grid">
+            <div class="summary-card"><span>분석 종목</span><strong id="buffettCount">0개</strong></div>
+            <div class="summary-card"><span>평균 Buffett 점수</span><strong id="buffettAvgScore">-</strong></div>
+            <div class="summary-card"><span>우수 후보</span><strong id="buffettQualityCount">0개</strong></div>
+            <div class="summary-card"><span>매도 검토</span><strong id="buffettSellCount">0개</strong></div>
+          </section>
+
+          <section class="lynch-dashboard">
+            <div class="panel lynch-chart-panel">
+              <div class="section-title">
+                <h2>Buffett 점수</h2>
+                <span class="muted">수익성, 성장성, 재무 안정성, 가격을 종합</span>
+              </div>
+              <canvas id="buffettChart" width="960" height="360"></canvas>
+            </div>
+            <div class="panel lynch-rules">
+              <div class="section-title">
+                <h2>3대 매도 원칙</h2>
+                <span class="muted">수업용 요약</span>
+              </div>
+              <div class="rule-list">
+                <div><strong>1. 사업의 질 훼손</strong><span>해자, 수익성, 성장성이 구조적으로 약해질 때</span></div>
+                <div><strong>2. 과도한 고평가</strong><span>좋은 기업이어도 가격이 미래 수익을 과하게 반영할 때</span></div>
+                <div><strong>3. 더 나은 기회</strong><span>확신도 높은 대안이 있어 자본 재배치가 필요할 때</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel lynch-table-panel">
+            <div class="section-title">
+              <h2>내 종목별 Buffett 분석</h2>
+              <span id="buffettUpdated" class="muted">-</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>종목</th>
+                    <th>점수</th>
+                    <th>ROE</th>
+                    <th>순이익률</th>
+                    <th>D/E</th>
+                    <th>해자 판단</th>
+                    <th>가격 규율</th>
+                    <th>매도 원칙 체크</th>
+                  </tr>
+                </thead>
+                <tbody id="buffettRows"></tbody>
               </table>
             </div>
           </section>

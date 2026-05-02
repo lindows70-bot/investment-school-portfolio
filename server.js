@@ -164,6 +164,13 @@ async function fetchNaverFinancials(symbol) {
           },
           financialData: {
             earningsGrowth: { raw: earningsGrowth },
+            totalCash: { raw: null },
+            totalDebt: { raw: null },
+            debtToEquity: { raw: null },
+            returnOnEquity: { raw: null },
+            profitMargins: { raw: null },
+            freeCashflow: { raw: null },
+            currentRatio: { raw: null },
           },
           price: {
             regularMarketPrice: { raw: Number(realtime.now) || null },

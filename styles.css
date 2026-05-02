@@ -580,8 +580,13 @@ canvas {
 .lynch-chart-panel,
 .lynch-rules,
 .lynch-category-panel,
+.lynch-health-panel,
 .lynch-table-panel {
   padding: 20px;
+}
+
+.lynch-health-panel {
+  margin-top: 18px;
 }
 
 .rule-list,

@@ -53,8 +53,16 @@ const el = {
   lynchUpdated: document.querySelector("#lynchUpdated"),
   lynchCards: document.querySelector("#lynchCards"),
   lynchRows: document.querySelector("#lynchRows"),
+  lynchHealthRows: document.querySelector("#lynchHealthRows"),
   lynchCategoryGrid: document.querySelector("#lynchCategoryGrid"),
   pegChart: document.querySelector("#pegChart"),
+  buffettCount: document.querySelector("#buffettCount"),
+  buffettAvgScore: document.querySelector("#buffettAvgScore"),
+  buffettQualityCount: document.querySelector("#buffettQualityCount"),
+  buffettSellCount: document.querySelector("#buffettSellCount"),
+  buffettUpdated: document.querySelector("#buffettUpdated"),
+  buffettRows: document.querySelector("#buffettRows"),
+  buffettChart: document.querySelector("#buffettChart"),
   researchType: document.querySelector("#researchType"),
   researchName: document.querySelector("#researchName"),
   researchSymbol: document.querySelector("#researchSymbol"),
@@ -255,6 +263,13 @@ async function fetchFinancials(symbol) {
     per: raw(summary.trailingPE),
     earningsGrowth: raw(financial.earningsGrowth),
     forwardEps: raw(financial.forwardEps) ?? raw(stats.forwardEps),
+    totalCash: raw(financial.totalCash),
+    totalDebt: raw(financial.totalDebt),
+    debtToEquity: raw(financial.debtToEquity),
+    returnOnEquity: raw(financial.returnOnEquity),
+    profitMargins: raw(financial.profitMargins),
+    freeCashflow: raw(financial.freeCashflow),
+    currentRatio: raw(financial.currentRatio),
     marketCap: raw(price.marketCap),
     currency: price.currency || guessCurrency(symbol),
   };
@@ -360,6 +375,13 @@ async function getFinancials(symbol) {
       per: null,
       earningsGrowth: null,
       forwardEps: null,
+      totalCash: null,
+      totalDebt: null,
+      debtToEquity: null,
+      returnOnEquity: null,
+      profitMargins: null,
+      freeCashflow: null,
+      currentRatio: null,
       marketCap: null,
       currency: guessCurrency(normalized),
     };
@@ -710,9 +732,70 @@ function isLynchViewActive() {
   return document.querySelector("#lynchView")?.classList.contains("active");
 }
 
+function isBuffettViewActive() {
+  return document.querySelector("#buffettView")?.classList.contains("active");
+}
+
 function formatPercent(value) {
   if (!Number.isFinite(value)) return "-";
   return `${value.toFixed(1)}%`;
+}
+
+function formatRatio(value) {
+  if (!Number.isFinite(value)) return "-";
+  return `${value.toFixed(1)}%`;
+}
+
+function getNetCash(financials) {
+  if (!Number.isFinite(financials.totalCash) || !Number.isFinite(financials.totalDebt)) return null;
+  return financials.totalCash - financials.totalDebt;
+}
+
+function getDebtEquityPercent(financials) {
+  return Number.isFinite(financials.debtToEquity) ? financials.debtToEquity : null;
+}
+
+function getLynchHealth(financials) {
+  const de = getDebtEquityPercent(financials);
+  const netCash = getNetCash(financials);
+  if (Number.isFinite(netCash) && netCash > 0 && (!Number.isFinite(de) || de < 25)) return { label: "★★★ 무부채급", tone: "good" };
+  if (Number.isFinite(netCash) && netCash > 0) return { label: "★★★ 순현금", tone: "good" };
+  if (Number.isFinite(de) && de < 50) return { label: "★★☆ 안전", tone: "watch" };
+  if (Number.isFinite(de) && de < 100) return { label: "★★☆ 양호", tone: "watch" };
+  if (Number.isFinite(de)) return { label: "★☆☆ 부채 주의", tone: "bad" };
+  return { label: "데이터 부족", tone: "neutral" };
+}
+
+function scoreBuffett(row) {
+  let score = 0;
+  if (Number.isFinite(row.returnOnEquity) && row.returnOnEquity >= 0.15) score += 25;
+  if (Number.isFinite(row.profitMargins) && row.profitMargins >= 0.15) score += 20;
+  if (Number.isFinite(row.debtToEquity) && row.debtToEquity <= 50) score += 20;
+  if (Number.isFinite(row.growthPercent) && row.growthPercent >= 5) score += 15;
+  if (Number.isFinite(row.peg) && row.peg <= 2) score += 10;
+  if (Number.isFinite(row.freeCashflow) && row.freeCashflow > 0) score += 10;
+  return score;
+}
+
+function getBuffettMoat(row) {
+  if ((row.returnOnEquity ?? 0) >= 0.2 && (row.profitMargins ?? 0) >= 0.18) return "강한 해자 후보";
+  if ((row.returnOnEquity ?? 0) >= 0.15 || (row.profitMargins ?? 0) >= 0.15) return "해자 관찰";
+  return "해자 약함/확인 필요";
+}
+
+function getBuffettPriceDiscipline(row) {
+  if (!Number.isFinite(row.peg)) return "가격 판단 데이터 부족";
+  if (row.peg <= 1.5) return "가격 규율 양호";
+  if (row.peg <= 2.5) return "가격 부담 관찰";
+  return "고평가 주의";
+}
+
+function getBuffettSellCheck(row) {
+  const checks = [];
+  if ((row.returnOnEquity ?? 1) < 0.1 || (row.profitMargins ?? 1) < 0.08) checks.push("사업의 질 훼손");
+  if (Number.isFinite(row.peg) && row.peg > 3) checks.push("과도한 고평가");
+  if (row.weight > 35 && row.score < 70) checks.push("더 나은 기회 검토");
+  return checks.length ? checks.join(", ") : "보유 논리 점검 유지";
 }
 
 async function buildLynchRows() {
@@ -736,6 +819,8 @@ async function buildLynchRows() {
     const fx = getFxMultiplier(holding.currency);
     const value = Number(holding.qty || 0) * Number(quote.price || 0) * fx;
     const category = classifyLynchCategory({ holding, quote, financials: data, growthPercent, peg });
+    const debtToEquity = getDebtEquityPercent(data);
+    const netCash = getNetCash(data);
     return {
       symbol: holding.symbol,
       name: holding.name || quote.name,
@@ -744,6 +829,13 @@ async function buildLynchRows() {
       growthPercent,
       peg,
       pbr: data.pbr,
+      totalCash: data.totalCash,
+      totalDebt: data.totalDebt,
+      debtToEquity,
+      netCash,
+      returnOnEquity: data.returnOnEquity,
+      profitMargins: data.profitMargins,
+      freeCashflow: data.freeCashflow,
       category,
       opinion: getPegOpinion(peg, growthPercent),
     };
@@ -760,6 +852,7 @@ async function renderLynchAnalysis() {
     el.lynchUpdated.textContent = "포트폴리오를 먼저 추가하세요";
     el.lynchCards.innerHTML = "";
     renderLynchCategories([]);
+    renderLynchHealth([]);
     el.lynchRows.innerHTML = `<tr><td colspan="7">포트폴리오에 종목을 추가하면 피터린치 분석이 표시됩니다.</td></tr>`;
     drawPegChart([]);
     return;
@@ -808,7 +901,36 @@ async function renderLynchAnalysis() {
     .join("");
 
   renderLynchCategories(rows);
+  renderLynchHealth(rows);
   drawPegChart(rows);
+}
+
+function renderLynchHealth(rows) {
+  if (!el.lynchHealthRows) return;
+  if (!rows.length) {
+    el.lynchHealthRows.innerHTML = `<tr><td colspan="6">포트폴리오에 종목을 추가하면 재무건전성 분석이 표시됩니다.</td></tr>`;
+    return;
+  }
+  el.lynchHealthRows.innerHTML = rows
+    .map((row) => {
+      const health = getLynchHealth(row);
+      const netCashText = Number.isFinite(row.netCash)
+        ? row.netCash >= 0
+          ? `순현금 ${formatCompact(row.netCash, "USD")}`
+          : `순부채 ${formatCompact(Math.abs(row.netCash), "USD")}`
+        : "데이터 부족";
+      return `
+        <tr>
+          <td><strong>${escapeHtml(row.symbol)}</strong><br><span class="muted">${escapeHtml(row.name)}</span></td>
+          <td>${formatRatio(row.debtToEquity)}</td>
+          <td>${formatCompact(row.totalCash, "USD")}</td>
+          <td>${formatCompact(row.totalDebt, "USD")}</td>
+          <td><span class="lynch-pill ${Number.isFinite(row.netCash) && row.netCash >= 0 ? "good" : "bad"}">${netCashText}</span></td>
+          <td><span class="lynch-pill ${health.tone}">${health.label}</span></td>
+        </tr>
+      `;
+    })
+    .join("");
 }
 
 function drawPegChart(rows) {
@@ -863,6 +985,91 @@ function drawPegChart(rows) {
   });
 }
 
+async function renderBuffettAnalysis() {
+  if (!el.buffettRows) return;
+  if (!holdings.length) {
+    el.buffettCount.textContent = "0개";
+    el.buffettAvgScore.textContent = "-";
+    el.buffettQualityCount.textContent = "0개";
+    el.buffettSellCount.textContent = "0개";
+    el.buffettUpdated.textContent = "포트폴리오를 먼저 추가하세요";
+    el.buffettRows.innerHTML = `<tr><td colspan="8">포트폴리오에 종목을 추가하면 워렌버핏 분석이 표시됩니다.</td></tr>`;
+    drawBuffettChart([]);
+    return;
+  }
+
+  el.buffettUpdated.textContent = "분석 중";
+  const rows = (await buildLynchRows()).map((row) => {
+    const scored = { ...row };
+    scored.score = scoreBuffett(scored);
+    scored.moat = getBuffettMoat(scored);
+    scored.priceDiscipline = getBuffettPriceDiscipline(scored);
+    scored.sellCheck = getBuffettSellCheck(scored);
+    return scored;
+  });
+  const avgScore = rows.reduce((sum, row) => sum + row.score, 0) / rows.length;
+
+  el.buffettCount.textContent = `${rows.length}개`;
+  el.buffettAvgScore.textContent = `${avgScore.toFixed(0)}점`;
+  el.buffettQualityCount.textContent = `${rows.filter((row) => row.score >= 70).length}개`;
+  el.buffettSellCount.textContent = `${rows.filter((row) => row.sellCheck !== "보유 논리 점검 유지").length}개`;
+  el.buffettUpdated.textContent = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+
+  el.buffettRows.innerHTML = rows
+    .map(
+      (row) => `
+        <tr>
+          <td><strong>${escapeHtml(row.symbol)}</strong><br><span class="muted">${escapeHtml(row.name)}</span></td>
+          <td><span class="lynch-pill ${row.score >= 70 ? "good" : row.score >= 45 ? "watch" : "bad"}">${row.score}점</span></td>
+          <td>${formatPercent((row.returnOnEquity ?? NaN) * 100)}</td>
+          <td>${formatPercent((row.profitMargins ?? NaN) * 100)}</td>
+          <td>${formatRatio(row.debtToEquity)}</td>
+          <td>${escapeHtml(row.moat)}</td>
+          <td>${escapeHtml(row.priceDiscipline)}</td>
+          <td>${escapeHtml(row.sellCheck)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  drawBuffettChart(rows);
+}
+
+function drawBuffettChart(rows) {
+  const canvas = el.buffettChart;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  if (!rows.length) {
+    ctx.fillStyle = "#9ba89d";
+    ctx.font = "14px system-ui";
+    ctx.fillText("분석할 포트폴리오 종목이 없습니다.", 28, 44);
+    return;
+  }
+
+  const pad = 54;
+  const chartRows = rows.slice(0, 8);
+  const gap = 14;
+  const barHeight = Math.max(18, (height - pad * 2 - gap * (chartRows.length - 1)) / chartRows.length);
+  chartRows.forEach((row, index) => {
+    const y = pad + index * (barHeight + gap);
+    const barWidth = (row.score / 100) * (width - pad * 2);
+    const color = row.score >= 70 ? "#75d37b" : row.score >= 45 ? "#f5c35b" : "#ff6b6b";
+    ctx.fillStyle = "rgba(238, 244, 238, 0.08)";
+    ctx.fillRect(pad, y, width - pad * 2, barHeight);
+    ctx.fillStyle = color;
+    ctx.fillRect(pad, y, barWidth, barHeight);
+    ctx.fillStyle = "#eef4ee";
+    ctx.font = "bold 12px system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText(row.symbol, 10, y + barHeight / 2 + 4);
+    ctx.textAlign = "right";
+    ctx.fillText(`${row.score}점`, width - 10, y + barHeight / 2 + 4);
+  });
+}
+
 async function refreshWatchlist() {
   setStatus("관심 종목 갱신 중", "idle");
   const quotes = await Promise.all(watchlistItems.map((item) => getQuote(item.symbol, "1d", "5m")));
@@ -877,6 +1084,7 @@ function bindEvents() {
       button.classList.add("active");
       document.querySelector(`#${button.dataset.view}View`).classList.add("active");
       if (button.dataset.view === "lynch") renderLynchAnalysis();
+      if (button.dataset.view === "buffett") renderBuffettAnalysis();
     });
   });
 
@@ -941,6 +1149,11 @@ function bindEvents() {
     await renderLynchAnalysis();
   });
 
+  document.querySelector("#refreshBuffett")?.addEventListener("click", async () => {
+    financialCache.clear();
+    await renderBuffettAnalysis();
+  });
+
   document.querySelector("#holdingForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const holding = {
@@ -955,6 +1168,7 @@ function bindEvents() {
     event.target.reset();
     await renderSelectedQuote();
     if (isLynchViewActive()) await renderLynchAnalysis();
+    if (isBuffettViewActive()) await renderBuffettAnalysis();
   });
 
   el.portfolioRows.addEventListener("click", async (event) => {
@@ -964,6 +1178,7 @@ function bindEvents() {
     saveHoldings();
     await renderSelectedQuote();
     if (isLynchViewActive()) await renderLynchAnalysis();
+    if (isBuffettViewActive()) await renderBuffettAnalysis();
   });
 
   el.portfolioRows.addEventListener("change", async (event) => {
@@ -980,6 +1195,7 @@ function bindEvents() {
     saveHoldings();
     await renderSelectedQuote();
     if (isLynchViewActive()) await renderLynchAnalysis();
+    if (isBuffettViewActive()) await renderBuffettAnalysis();
   });
 
   document.querySelector("#clearPortfolio").addEventListener("click", async () => {
@@ -987,6 +1203,7 @@ function bindEvents() {
     saveHoldings();
     await renderSelectedQuote();
     if (isLynchViewActive()) await renderLynchAnalysis();
+    if (isBuffettViewActive()) await renderBuffettAnalysis();
   });
 }
 
