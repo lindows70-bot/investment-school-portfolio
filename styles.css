@@ -396,6 +396,7 @@ select:focus {
   display: flex;
   gap: 10px;
   align-items: center;
+  justify-content: flex-end;
   color: var(--muted);
   font-size: 13px;
   white-space: nowrap;
@@ -407,6 +408,11 @@ select:focus {
   padding: 6px 10px;
   color: var(--text);
   background: var(--surface-2);
+}
+
+.fx-pill {
+  border-color: rgba(245, 195, 91, 0.55);
+  color: var(--accent-2);
 }
 
 .view {
@@ -743,7 +749,7 @@ select:focus {
 canvas {
   width: 100%;
   aspect-ratio: 16 / 6;
-  background: linear-gradient(180deg, rgba(117, 211, 123, 0.08), rgba(117, 211, 123, 0.01));
+  background: #f8fbf8;
   border: 1px solid var(--line);
   border-radius: 8px;
 }

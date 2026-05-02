@@ -22,6 +22,7 @@ let watchlistItems = loadWatchlist();
 const el = {
   clock: document.querySelector("#clock"),
   connectionState: document.querySelector("#connectionState"),
+  topFxRate: document.querySelector("#topFxRate"),
   watchlist: document.querySelector("#watchlist"),
   watchlistForm: document.querySelector("#watchlistForm"),
   watchSymbol: document.querySelector("#watchSymbol"),
@@ -239,10 +240,17 @@ async function fetchYahooChart(symbol, range = "1d", interval = "5m") {
   const meta = result.meta;
   const quote = result.indicators?.quote?.[0] || {};
   const timestamps = result.timestamp || [];
-  const closes = (quote.close || []).map((price, index) => ({
-    time: timestamps[index] * 1000,
-    price,
-  })).filter((point) => Number.isFinite(point.price));
+  const closes = (quote.close || [])
+    .map((price, index) => ({
+      time: timestamps[index] * 1000,
+      open: Number(quote.open?.[index]),
+      high: Number(quote.high?.[index]),
+      low: Number(quote.low?.[index]),
+      close: Number(price),
+      price,
+      volume: Number(quote.volume?.[index]),
+    }))
+    .filter((point) => Number.isFinite(point.close));
 
   const previous = Number(meta.chartPreviousClose ?? closes[0]?.price ?? meta.regularMarketPrice);
   const current = Number(meta.regularMarketPrice ?? closes.at(-1)?.price ?? 0);
@@ -357,6 +365,9 @@ async function fetchFxRate() {
   }
   if (el.fxRate) {
     el.fxRate.textContent = `${formatNumber(fxRate.usdKrw, 2)}원`;
+  }
+  if (el.topFxRate) {
+    el.topFxRate.textContent = `USD/KRW ${formatNumber(fxRate.usdKrw, 2)}`;
   }
   return fxRate.usdKrw;
 }
@@ -585,17 +596,27 @@ function drawChart(points, currency, canvas = el.chart) {
     return;
   }
 
-  const prices = points.map((point) => point.price);
+  const hasOhlc = points.some((point) => Number.isFinite(point.open) && Number.isFinite(point.high) && Number.isFinite(point.low) && Number.isFinite(point.close));
+  const prices = points.flatMap((point) =>
+    hasOhlc ? [point.high, point.low].filter(Number.isFinite) : [point.price].filter(Number.isFinite),
+  );
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const padX = 78;
-  const padY = 28;
+  const padTop = 24;
+  const padBottom = hasOhlc ? 82 : 28;
+  const priceHeight = height - padTop - padBottom;
+  const volumeTop = height - 52;
   const range = max - min || 1;
 
-  ctx.strokeStyle = "rgba(238, 244, 238, 0.08)";
+  ctx.fillStyle = "#f8fbf8";
+  ctx.fillRect(padX, padTop, width - padX * 2, priceHeight);
+  if (hasOhlc) ctx.fillRect(padX, volumeTop, width - padX * 2, 34);
+
+  ctx.strokeStyle = "rgba(20, 32, 25, 0.10)";
   ctx.lineWidth = 1;
   for (let i = 0; i < 5; i += 1) {
-    const y = padY + ((height - padY * 2) / 4) * i;
+    const y = padTop + (priceHeight / 4) * i;
     ctx.beginPath();
     ctx.moveTo(padX, y);
     ctx.lineTo(width - padX, y);
@@ -603,43 +624,71 @@ function drawChart(points, currency, canvas = el.chart) {
   }
 
   const xFor = (index) => padX + (index / Math.max(points.length - 1, 1)) * (width - padX * 2);
-  const yFor = (price) => height - padY - ((price - min) / range) * (height - padY * 2);
+  const yFor = (price) => padTop + priceHeight - ((price - min) / range) * priceHeight;
   const isUp = points.at(-1).price >= points[0].price;
 
-  const gradient = ctx.createLinearGradient(0, padY, 0, height - padY);
-  gradient.addColorStop(0, isUp ? "rgba(117, 211, 123, 0.30)" : "rgba(255, 107, 107, 0.24)");
-  gradient.addColorStop(1, "rgba(24, 29, 26, 0)");
+  if (hasOhlc) {
+    const candleWidth = Math.max(3, Math.min(12, ((width - padX * 2) / Math.max(points.length, 1)) * 0.58));
+    const maxVolume = Math.max(1, ...points.map((point) => Number(point.volume) || 0));
+    points.forEach((point, index) => {
+      const x = xFor(index);
+      const up = point.close >= point.open;
+      const color = up ? "#e14141" : "#2f8cff";
+      const yHigh = yFor(point.high);
+      const yLow = yFor(point.low);
+      const yOpen = yFor(point.open);
+      const yClose = yFor(point.close);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, yHigh);
+      ctx.lineTo(x, yLow);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillRect(x - candleWidth / 2, Math.min(yOpen, yClose), candleWidth, Math.max(2, Math.abs(yClose - yOpen)));
+      const volumeHeight = ((Number(point.volume) || 0) / maxVolume) * 30;
+      ctx.fillStyle = up ? "rgba(225, 65, 65, 0.28)" : "rgba(47, 140, 255, 0.28)";
+      ctx.fillRect(x - candleWidth / 2, volumeTop + 34 - volumeHeight, candleWidth, volumeHeight);
+    });
+    const ma = (count) =>
+      points.map((_, index) => {
+        const slice = points.slice(Math.max(0, index - count + 1), index + 1);
+        return slice.reduce((sum, point) => sum + point.close, 0) / slice.length;
+      });
+    [
+      { values: ma(5), color: "rgba(245, 176, 65, 0.95)" },
+      { values: ma(20), color: "rgba(103, 126, 234, 0.85)" },
+    ].forEach((line) => {
+      ctx.beginPath();
+      line.values.forEach((value, index) => {
+        const x = xFor(index);
+        const y = yFor(value);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    });
+  } else {
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      const x = xFor(index);
+      const y = yFor(point.price);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = isUp ? "#75d37b" : "#ff6b6b";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
 
-  ctx.beginPath();
-  points.forEach((point, index) => {
-    const x = xFor(index);
-    const y = yFor(point.price);
-    if (index === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.lineTo(width - padX, height - padY);
-  ctx.lineTo(padX, height - padY);
-  ctx.closePath();
-  ctx.fillStyle = gradient;
-  ctx.fill();
-
-  ctx.beginPath();
-  points.forEach((point, index) => {
-    const x = xFor(index);
-    const y = yFor(point.price);
-    if (index === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.strokeStyle = isUp ? "#75d37b" : "#ff6b6b";
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  ctx.fillStyle = "#9ba89d";
+  ctx.fillStyle = "#415047";
   ctx.font = "12px system-ui";
   ctx.textBaseline = "middle";
   for (let i = 0; i < 5; i += 1) {
     const value = max - (range / 4) * i;
-    const y = padY + ((height - padY * 2) / 4) * i;
+    const y = padTop + (priceHeight / 4) * i;
     const label = formatMoney(value, currency);
     ctx.textAlign = "left";
     ctx.fillText(label, 10, y);
