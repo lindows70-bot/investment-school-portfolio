@@ -1,4 +1,4 @@
-const CACHE_NAME = "portfolio-pulse-v17";
+const CACHE_NAME = "portfolio-pulse-v18";
 const STATIC_ASSETS = [
   "/",
   "/index.html",

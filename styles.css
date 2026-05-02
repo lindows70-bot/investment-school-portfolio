@@ -749,7 +749,7 @@ select:focus {
 canvas {
   width: 100%;
   aspect-ratio: 16 / 6;
-  background: #f8fbf8;
+  background: linear-gradient(180deg, rgba(117, 211, 123, 0.08), rgba(117, 211, 123, 0.01));
   border: 1px solid var(--line);
   border-radius: 8px;
 }

@@ -697,6 +697,148 @@ function drawChart(points, currency, canvas = el.chart) {
   }
 }
 
+function percentile(values, ratio) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)))];
+}
+
+function drawChart(points, currency, canvas = el.chart) {
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+
+  if (!points.length) {
+    ctx.fillStyle = "#9ba89d";
+    ctx.fillText("차트 데이터가 없습니다.", 24, 40);
+    return;
+  }
+
+  const candlePoints = points.filter(
+    (point) =>
+      Number.isFinite(point.open) &&
+      Number.isFinite(point.high) &&
+      Number.isFinite(point.low) &&
+      Number.isFinite(point.close),
+  );
+  const hasOhlc = candlePoints.length >= Math.min(8, points.length);
+  const basePoints = hasOhlc ? candlePoints : points;
+  const rawPrices = basePoints
+    .flatMap((point) => (hasOhlc ? [point.open, point.high, point.low, point.close] : [point.price]))
+    .filter(Number.isFinite);
+  const centerPrices = basePoints
+    .flatMap((point) => (hasOhlc ? [point.open, point.close] : [point.price]))
+    .filter(Number.isFinite);
+  const qLow = percentile(rawPrices, 0.03);
+  const qHigh = percentile(rawPrices, 0.97);
+  const centerMin = Math.min(...centerPrices);
+  const centerMax = Math.max(...centerPrices);
+  const spread = Math.max((qHigh ?? centerMax) - (qLow ?? centerMin), centerMax * 0.01, 1);
+  const min = Math.min(centerMin, qLow ?? centerMin) - spread * 0.08;
+  const max = Math.max(centerMax, qHigh ?? centerMax) + spread * 0.08;
+  const padX = 78;
+  const padTop = 24;
+  const padBottom = hasOhlc ? 82 : 28;
+  const priceHeight = height - padTop - padBottom;
+  const volumeTop = height - 52;
+  const range = max - min || 1;
+
+  const bg = ctx.createLinearGradient(0, padTop, 0, height);
+  bg.addColorStop(0, "rgba(32, 39, 32, 0.98)");
+  bg.addColorStop(1, "rgba(17, 21, 19, 0.98)");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = "rgba(238, 244, 238, 0.08)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i += 1) {
+    const y = padTop + (priceHeight / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(padX, y);
+    ctx.lineTo(width - padX, y);
+    ctx.stroke();
+  }
+
+  const xFor = (index) => padX + (index / Math.max(basePoints.length - 1, 1)) * (width - padX * 2);
+  const yFor = (price) => {
+    const clamped = Math.min(max, Math.max(min, price));
+    return padTop + priceHeight - ((clamped - min) / range) * priceHeight;
+  };
+  const isUp = basePoints.at(-1).price >= basePoints[0].price;
+
+  if (hasOhlc) {
+    const candleWidth = Math.max(2, Math.min(10, ((width - padX * 2) / Math.max(basePoints.length, 1)) * 0.54));
+    const maxVolume = Math.max(1, ...basePoints.map((point) => Number(point.volume) || 0));
+    basePoints.forEach((point, index) => {
+      const x = xFor(index);
+      const up = point.close >= point.open;
+      const color = up ? "#e05f5f" : "#57a3ff";
+      const yHigh = yFor(point.high);
+      const yLow = yFor(point.low);
+      const yOpen = yFor(point.open);
+      const yClose = yFor(point.close);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, yHigh);
+      ctx.lineTo(x, yLow);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillRect(x - candleWidth / 2, Math.min(yOpen, yClose), candleWidth, Math.max(2, Math.abs(yClose - yOpen)));
+      const volumeHeight = ((Number(point.volume) || 0) / maxVolume) * 30;
+      ctx.fillStyle = up ? "rgba(224, 95, 95, 0.28)" : "rgba(87, 163, 255, 0.28)";
+      ctx.fillRect(x - candleWidth / 2, volumeTop + 34 - volumeHeight, candleWidth, volumeHeight);
+    });
+
+    const ma = (count) =>
+      basePoints.map((_, index) => {
+        const slice = basePoints.slice(Math.max(0, index - count + 1), index + 1);
+        return slice.reduce((sum, point) => sum + point.close, 0) / slice.length;
+      });
+
+    [
+      { values: ma(5), color: "rgba(245, 195, 91, 0.95)" },
+      { values: ma(20), color: "rgba(137, 154, 255, 0.85)" },
+    ].forEach((line) => {
+      ctx.beginPath();
+      line.values.forEach((value, index) => {
+        const x = xFor(index);
+        const y = yFor(value);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    });
+  } else {
+    ctx.beginPath();
+    basePoints.forEach((point, index) => {
+      const x = xFor(index);
+      const y = yFor(point.price);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = isUp ? "#75d37b" : "#ff6b6b";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#9ba89d";
+  ctx.font = "12px system-ui";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < 5; i += 1) {
+    const value = max - (range / 4) * i;
+    const y = padTop + (priceHeight / 4) * i;
+    const label = formatMoney(value, currency);
+    ctx.textAlign = "left";
+    ctx.fillText(label, 10, y);
+    ctx.textAlign = "right";
+    ctx.fillText(label, width - 10, y);
+  }
+}
+
 function buildResearchNotes(quote, financials) {
   const growthPercent = getGrowthPercent(financials);
   const peg = financials.per && growthPercent && growthPercent > 0 ? financials.per / growthPercent : null;
