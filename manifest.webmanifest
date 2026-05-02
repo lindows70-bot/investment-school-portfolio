@@ -1,0 +1,19 @@
+{
+  "name": "Portfolio Pulse",
+  "short_name": "Pulse",
+  "description": "2026 주식학교 학생용 주식 포트폴리오 앱",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#111513",
+  "theme_color": "#111513",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111513" />
+    <meta
+      name="description"
+      content="미국주식, 한국주식, 암호화폐 시세와 포트폴리오 수익률을 관리하는 주식학교용 웹앱"
+    />
+    <title>Portfolio Pulse</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">P</div>
+          <div>
+            <h1>Portfolio Pulse</h1>
+            <p>미국주식, 한국주식, 암호화폐</p>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="앱 보기">
+          <button class="nav-tab active" data-view="dashboard" title="대시보드">
+            <span class="icon">D</span><span>대시보드</span>
+          </button>
+          <button class="nav-tab" data-view="portfolio" title="포트폴리오">
+            <span class="icon">P</span><span>포트폴리오</span>
+          </button>
+          <button class="nav-tab" data-view="research" title="종목 리서치">
+            <span class="icon">S</span><span>종목 리서치</span>
+          </button>
+        </nav>
+
+        <section class="panel compact">
+          <div class="section-title">
+            <h2>관심 종목</h2>
+            <button id="refreshAll" class="icon-button" title="새로고침">R</button>
+          </div>
+          <div id="watchlist" class="watchlist"></div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <form id="symbolForm" class="symbol-search">
+            <input
+              id="symbolInput"
+              type="text"
+              placeholder="예: AAPL, TSLA, 005930.KS, 035720.KQ, BTC-USD, XRP-USD"
+              autocomplete="off"
+            />
+            <button type="submit">조회</button>
+          </form>
+          <div class="market-clock">
+            <span id="clock"></span>
+            <span id="connectionState" class="status-pill">대기 중</span>
+          </div>
+        </header>
+
+        <section id="dashboardView" class="view active">
+          <div class="hero-grid">
+            <section class="panel quote-panel">
+              <div class="quote-heading">
+                <div>
+                  <p id="selectedType" class="eyebrow">WATCHLIST</p>
+                  <h2 id="selectedName">Apple Inc.</h2>
+                  <p id="selectedSymbol">AAPL</p>
+                </div>
+                <div class="quote-price">
+                  <strong id="selectedPrice">$0.00</strong>
+                  <span id="selectedChange" class="change neutral">0.00%</span>
+                </div>
+              </div>
+              <div class="chart-toolbar">
+                <div class="range-tabs" aria-label="차트 기간">
+                  <button class="range-tab active" data-range="1d" data-interval="5m">1D</button>
+                  <button class="range-tab" data-range="5d" data-interval="15m">5D</button>
+                  <button class="range-tab" data-range="1mo" data-interval="1d">1M</button>
+                  <button class="range-tab" data-range="6mo" data-interval="1d">6M</button>
+                  <button class="range-tab" data-range="1y" data-interval="1wk">1Y</button>
+                </div>
+                <div id="averagePriceBadge" class="average-price-badge" hidden>평균단가 -</div>
+              </div>
+              <canvas id="priceChart" width="960" height="360"></canvas>
+            </section>
+
+            <section class="panel metrics-panel">
+              <div class="section-title">
+                <h2>재무 정보</h2>
+                <span id="financialUpdated" class="muted">-</span>
+              </div>
+              <div class="metrics-grid">
+                <div><span>EPS</span><strong id="metricEps">-</strong></div>
+                <div><span>BPS</span><strong id="metricBps">-</strong></div>
+                <div><span>PBR</span><strong id="metricPbr">-</strong></div>
+                <div><span>PER</span><strong id="metricPer">-</strong></div>
+                <div><span>시가총액</span><strong id="metricMarketCap">-</strong></div>
+                <div><span>통화</span><strong id="metricCurrency">-</strong></div>
+              </div>
+              <p id="dataNotice" class="notice">
+                서버 프록시를 통해 최신 시세와 재무 정보를 불러옵니다.
+              </p>
+            </section>
+          </div>
+
+          <section class="portfolio-summary">
+            <div class="summary-card">
+              <span>총 평가금액</span>
+              <strong id="totalValue">₩0</strong>
+            </div>
+            <div class="summary-card">
+              <span>총 매입금액</span>
+              <strong id="totalCost">₩0</strong>
+            </div>
+            <div class="summary-card">
+              <span>평가손익</span>
+              <strong id="totalProfit">₩0</strong>
+            </div>
+            <div class="summary-card">
+              <span>수익률</span>
+              <strong id="totalReturn">0.00%</strong>
+            </div>
+          </section>
+        </section>
+
+        <section id="portfolioView" class="view">
+          <section class="panel">
+            <div class="section-title">
+              <h2>내 포트폴리오</h2>
+              <button id="clearPortfolio" class="ghost-button">전체 비우기</button>
+            </div>
+            <form id="holdingForm" class="holding-form">
+              <input id="holdingSymbol" placeholder="심볼" required />
+              <input id="holdingName" placeholder="종목명" />
+              <input id="holdingQty" type="number" min="0" step="0.000001" placeholder="수량" required />
+              <input id="holdingAvg" type="number" min="0" step="0.01" placeholder="평균단가" required />
+              <select id="holdingCurrency">
+                <option value="USD">USD</option>
+                <option value="KRW">KRW</option>
+              </select>
+              <button type="submit">추가</button>
+            </form>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>종목</th>
+                    <th>수량</th>
+                    <th>평균단가</th>
+                    <th>현재가</th>
+                    <th>평가금액</th>
+                    <th>손익</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="portfolioRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="researchView" class="view">
+          <section class="panel research-panel">
+            <div class="section-title">
+              <h2>심볼 가이드</h2>
+              <span class="muted">Yahoo Finance 형식</span>
+            </div>
+            <div class="guide-grid">
+              <button class="guide-item" data-symbol="AAPL"><strong>AAPL</strong><span>미국 Apple</span></button>
+              <button class="guide-item" data-symbol="TSLA"><strong>TSLA</strong><span>미국 Tesla</span></button>
+              <button class="guide-item" data-symbol="005930.KS">
+                <strong>005930.KS</strong><span>삼성전자 KOSPI</span>
+              </button>
+              <button class="guide-item" data-symbol="035720.KQ">
+                <strong>035720.KQ</strong><span>카카오 KOSDAQ</span>
+              </button>
+              <button class="guide-item" data-symbol="BTC-USD"><strong>BTC-USD</strong><span>비트코인</span></button>
+              <button class="guide-item" data-symbol="XRP-USD"><strong>XRP-USD</strong><span>XRP</span></button>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
