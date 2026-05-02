@@ -1,7 +1,7 @@
 {
-  "name": "Portfolio Pulse",
-  "short_name": "Pulse",
-  "description": "2026 주식학교 학생용 주식 포트폴리오 앱",
+  "name": "투자학교 포트폴리오 (Get Rich Slowly)",
+  "short_name": "투자학교",
+  "description": "투자학교 학생용 주식 포트폴리오 앱",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

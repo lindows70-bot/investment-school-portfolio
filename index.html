@@ -8,7 +8,7 @@
       name="description"
       content="미국주식, 한국주식, 암호화폐 시세와 포트폴리오 수익률을 관리하는 주식학교용 웹앱"
     />
-    <title>Portfolio Pulse</title>
+    <title>투자학교 포트폴리오 (Get Rich Slowly)</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icon.svg" />
@@ -18,9 +18,17 @@
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark">P</div>
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="img">
+              <circle cx="32" cy="32" r="30" fill="#f7931a" />
+              <path
+                fill="#fff"
+                d="M38.8 18.1c4.3 1.1 7.2 3.4 6.6 7.2-.4 2.8-2.2 4.2-4.7 4.8 3.4 1.2 5.2 3.5 4.5 7.4-.9 5-5 6.7-10.6 6l-1.2 5.1-3.1-.7 1.2-5-2.5-.6-1.2 5-3.1-.7 1.2-5.1-6.3-1.5 1.6-3.6 2 .5c.9.2 1.4-.1 1.7-1l3.2-13.6c.2-.8-.1-1.3-1.1-1.6l-2-.5.8-3.4 6.4 1.5 1.1-4.7 3.1.7-1.1 4.6 2.5.6 1.1-4.7 3.1.7-1.1 4.6Zm-7.7 12.9-1.3 5.4 4.3 1c2.3.5 4.1.1 4.5-1.9.5-2.1-.9-3.1-3.3-3.7l-4.2-.8Zm2.1-8.8-1.2 5 3.7.9c2.1.5 3.6 0 4-1.7.4-1.8-.9-2.7-3-3.2l-3.5-1Z"
+              />
+            </svg>
+          </div>
           <div>
-            <h1>Portfolio Pulse</h1>
+            <h1><span>투자학교 포트폴리오</span><span>(Get Rich Slowly)</span></h1>
             <p>미국주식, 한국주식, 암호화폐</p>
           </div>
         </div>
@@ -35,6 +43,9 @@
           <button class="nav-tab" data-view="research" title="종목 리서치">
             <span class="icon">S</span><span>종목 리서치</span>
           </button>
+          <button class="nav-tab" data-view="lynch" title="피터린치 분석">
+            <span class="icon">L</span><span>피터린치 분석</span>
+          </button>
         </nav>
 
         <section class="panel compact">
@@ -42,6 +53,11 @@
             <h2>관심 종목</h2>
             <button id="refreshAll" class="icon-button" title="새로고침">R</button>
           </div>
+          <form id="watchlistForm" class="watchlist-form">
+            <input id="watchSymbol" placeholder="심볼" required />
+            <input id="watchName" placeholder="이름 선택" />
+            <button type="submit">추가</button>
+          </form>
           <div id="watchlist" class="watchlist"></div>
         </section>
       </aside>
@@ -126,6 +142,10 @@
               <span>수익률</span>
               <strong id="totalReturn">0.00%</strong>
             </div>
+            <div class="summary-card">
+              <span>USD/KRW 환율</span>
+              <strong id="fxRate">-</strong>
+            </div>
           </section>
         </section>
 
@@ -182,6 +202,93 @@
               </button>
               <button class="guide-item" data-symbol="BTC-USD"><strong>BTC-USD</strong><span>비트코인</span></button>
               <button class="guide-item" data-symbol="XRP-USD"><strong>XRP-USD</strong><span>XRP</span></button>
+            </div>
+          </section>
+        </section>
+
+        <section id="lynchView" class="view">
+          <section class="lynch-hero">
+            <div>
+              <p class="eyebrow">PETER LYNCH CHECK</p>
+              <h2>피터린치 분석</h2>
+              <p>
+                내 포트폴리오 종목의 PER, EPS 성장률, PEG를 함께 보고 성장 대비 가격 부담을 점검합니다.
+              </p>
+            </div>
+            <button id="refreshLynch" class="ghost-button">분석 새로고침</button>
+          </section>
+
+          <section class="lynch-summary-grid">
+            <div class="summary-card">
+              <span>분석 종목</span>
+              <strong id="lynchCount">0개</strong>
+            </div>
+            <div class="summary-card">
+              <span>평균 PEG</span>
+              <strong id="lynchAvgPeg">-</strong>
+            </div>
+            <div class="summary-card">
+              <span>PEG 1 이하</span>
+              <strong id="lynchGoodPeg">0개</strong>
+            </div>
+            <div class="summary-card">
+              <span>성장률 확인</span>
+              <strong id="lynchGrowthCoverage">0%</strong>
+            </div>
+          </section>
+
+          <section class="lynch-dashboard">
+            <div class="panel lynch-chart-panel">
+              <div class="section-title">
+                <h2>PEG 분포</h2>
+                <span class="muted">낮을수록 성장 대비 가격 부담이 낮습니다</span>
+              </div>
+              <canvas id="pegChart" width="960" height="360"></canvas>
+            </div>
+
+            <div class="panel lynch-rules">
+              <div class="section-title">
+                <h2>해석 기준</h2>
+                <span class="muted">단순 참고용</span>
+              </div>
+              <div class="rule-list">
+                <div><strong>PEG ≤ 1</strong><span>성장 대비 가격이 매력적인 구간</span></div>
+                <div><strong>1 < PEG ≤ 2</strong><span>적정 또는 관찰 구간</span></div>
+                <div><strong>PEG > 2</strong><span>성장 대비 비싼 구간</span></div>
+                <div><strong>성장률 없음</strong><span>EPS 성장률 확인이 필요한 종목</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel lynch-category-panel">
+            <div class="section-title">
+              <h2>피터린치 6대 종목분류</h2>
+              <span class="muted">성장률, 자산가치, 업종 특성을 함께 반영</span>
+            </div>
+            <div id="lynchCategoryGrid" class="lynch-category-grid"></div>
+          </section>
+
+          <section class="panel lynch-table-panel">
+            <div class="section-title">
+              <h2>내 종목별 분석</h2>
+              <span id="lynchUpdated" class="muted">-</span>
+            </div>
+            <div id="lynchCards" class="lynch-card-grid"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>종목</th>
+                    <th>비중</th>
+                    <th>PER</th>
+                    <th>EPS 성장률</th>
+                    <th>PEG</th>
+                    <th>6대 분류</th>
+                    <th>피터린치식 판단</th>
+                  </tr>
+                </thead>
+                <tbody id="lynchRows"></tbody>
+              </table>
             </div>
           </section>
         </section>

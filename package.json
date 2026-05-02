@@ -1,7 +1,7 @@
 {
   "name": "portfolio-pulse",
   "version": "1.0.0",
-  "description": "Stock portfolio PWA for 2026 stock school students",
+  "description": "Stock portfolio PWA for 2026 investment school students",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

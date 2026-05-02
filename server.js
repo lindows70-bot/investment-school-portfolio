@@ -97,9 +97,13 @@ function isKoreanSymbol(symbol) {
 }
 
 function parseNaverMetric(html, label) {
+  return parseNaverMetricValues(html, label).at(-1) ?? null;
+}
+
+function parseNaverMetricValues(html, label) {
   const rowPattern = new RegExp(`<tr[^>]*>[\\s\\S]*?<strong>${label}[\\s\\S]*?</tr>`, "i");
   const row = html.match(rowPattern)?.[0] || "";
-  const values = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
+  return [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
     .map((match) =>
       match[1]
         .replace(/<[^>]+>/g, " ")
@@ -109,8 +113,6 @@ function parseNaverMetric(html, label) {
     )
     .map((value) => Number(value.replace(/,/g, "")))
     .filter((value) => Number.isFinite(value) && value !== 0);
-
-  return values.at(-1) ?? null;
 }
 
 async function fetchNaverFinancials(symbol) {
@@ -125,6 +127,7 @@ async function fetchNaverFinancials(symbol) {
 
   const html = new TextDecoder("windows-949").decode(Buffer.from(await response.arrayBuffer()));
   const eps = parseNaverMetric(html, "EPS");
+  const epsValues = parseNaverMetricValues(html, "EPS");
   const bps = parseNaverMetric(html, "BPS");
   const pbr = parseNaverMetric(html, "PBR");
   const per = parseNaverMetric(html, "PER");
@@ -141,20 +144,26 @@ async function fetchNaverFinancials(symbol) {
   const marketCap = Number.isFinite(Number(realtime.marketSum))
     ? Math.trunc(Number(realtime.marketSum) / 100) * 100_000_000
     : null;
+  const latestEps = Number(realtime.eps) || epsValues.at(-1) || eps;
+  const previousEps = epsValues.length > 1 ? epsValues.at(-2) : null;
+  const earningsGrowth =
+    latestEps && previousEps && previousEps > 0 ? Math.max((latestEps - previousEps) / previousEps, -0.99) : null;
 
   return {
     quoteSummary: {
       result: [
         {
           defaultKeyStatistics: {
-            trailingEps: { raw: Number(realtime.eps) || eps },
+            trailingEps: { raw: latestEps },
             bookValue: { raw: bps },
             priceToBook: { raw: Number(realtime.pbr) || pbr },
           },
           summaryDetail: {
             trailingPE: { raw: Number(realtime.per) || per },
           },
-          financialData: {},
+          financialData: {
+            earningsGrowth: { raw: earningsGrowth },
+          },
           price: {
             regularMarketPrice: { raw: Number(realtime.now) || null },
             marketCap: { raw: marketCap },
@@ -168,6 +177,26 @@ async function fetchNaverFinancials(symbol) {
 }
 
 async function handleApi(req, res, url) {
+  if (url.pathname === "/api/fx") {
+    try {
+      const pair = url.searchParams.get("pair") || "USDKRW=X";
+      const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+        pair,
+      )}?range=1d&interval=5m`;
+      const payload = await fetchJson(yahooUrl);
+      const meta = payload.chart?.result?.[0]?.meta || {};
+      sendJson(res, 200, {
+        pair,
+        rate: Number(meta.regularMarketPrice) || null,
+        currency: "KRW",
+        updatedAt: meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now(),
+      });
+    } catch (error) {
+      sendJson(res, 502, { error: error.message || "fx request failed" });
+    }
+    return;
+  }
+
   const symbol = (url.searchParams.get("symbol") || "").trim().toUpperCase();
   if (!symbol) {
     sendJson(res, 400, { error: "symbol is required" });
@@ -218,7 +247,9 @@ async function handleApi(req, res, url) {
                 summaryDetail: {
                   trailingPE: { raw: quote.trailingPE ?? null },
                 },
-                financialData: {},
+                financialData: {
+                  earningsGrowth: { raw: quote.earningsQuarterlyGrowth ?? null },
+                },
                 price: {
                   regularMarketPrice: { raw: quote.regularMarketPrice ?? null },
                   marketCap: { raw: quote.marketCap ?? null },
