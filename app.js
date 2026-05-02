@@ -45,6 +45,20 @@ const el = {
   totalProfit: document.querySelector("#totalProfit"),
   totalReturn: document.querySelector("#totalReturn"),
   fxRate: document.querySelector("#fxRate"),
+  dashboardTotalValue: document.querySelector("#dashboardTotalValue"),
+  dashboardTotalProfit: document.querySelector("#dashboardTotalProfit"),
+  dashboardTotalReturn: document.querySelector("#dashboardTotalReturn"),
+  dashboardPositionCount: document.querySelector("#dashboardPositionCount"),
+  dashboardUsdWeight: document.querySelector("#dashboardUsdWeight"),
+  dashboardKrwWeight: document.querySelector("#dashboardKrwWeight"),
+  dashboardCryptoWeight: document.querySelector("#dashboardCryptoWeight"),
+  dashboardBest: document.querySelector("#dashboardBest"),
+  dashboardWorst: document.querySelector("#dashboardWorst"),
+  dashboardAllocationChart: document.querySelector("#dashboardAllocationChart"),
+  dashboardPerformanceChart: document.querySelector("#dashboardPerformanceChart"),
+  dashboardLeaders: document.querySelector("#dashboardLeaders"),
+  dashboardMix: document.querySelector("#dashboardMix"),
+  dashboardBrief: document.querySelector("#dashboardBrief"),
   portfolioRows: document.querySelector("#portfolioRows"),
   lynchCount: document.querySelector("#lynchCount"),
   lynchAvgPeg: document.querySelector("#lynchAvgPeg"),
@@ -125,7 +139,7 @@ function loadHoldings() {
     return [
       { symbol: "AAPL", name: "Apple Inc.", qty: 3, avgPrice: 180, currency: "USD" },
       { symbol: "005930.KS", name: "삼성전자", qty: 10, avgPrice: 72000, currency: "KRW" },
-      { symbol: "BTC-USD", name: "Bitcoin", qty: 0.02, avgPrice: 65000, currency: "USD" },
+      { symbol: "BTC-USD", name: "Bitcoin", qty: 0.02, avgPrice: 90000000, currency: "KRW" },
     ];
   }
   try {
@@ -191,6 +205,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function displayHoldingName(row) {
+  return row?.name || row?.quote?.name || row?.holding?.name || row?.symbol || "-";
 }
 
 function normalizeSymbol(symbol) {
@@ -308,6 +326,46 @@ async function fetchFxRate() {
 
 function getFxMultiplier(currency) {
   return currency === "USD" ? fxRate.usdKrw : 1;
+}
+
+function convertAmount(value, fromCurrency = "USD", toCurrency = "KRW") {
+  if (!Number.isFinite(value)) return 0;
+  if (fromCurrency === toCurrency) return value;
+  if (fromCurrency === "USD" && toCurrency === "KRW") return value * fxRate.usdKrw;
+  if (fromCurrency === "KRW" && toCurrency === "USD") return value / fxRate.usdKrw;
+  return value;
+}
+
+function getHoldingCurrency(holding, quote) {
+  return holding.currency || quote?.currency || guessCurrency(holding.symbol);
+}
+
+function getDisplayQuotePrice(quote, holdingCurrency) {
+  return convertAmount(Number(quote.price || 0), quote.currency || guessCurrency(quote.symbol), holdingCurrency);
+}
+
+function getPortfolioRowMetrics(holding, quote) {
+  const currency = getHoldingCurrency(holding, quote);
+  const qty = Number(holding.qty || 0);
+  const avgPrice = Number(holding.avgPrice || 0);
+  const currentPrice = getDisplayQuotePrice(quote, currency);
+  const cost = qty * avgPrice;
+  const value = qty * currentPrice;
+  const profit = value - cost;
+  const profitPercent = cost ? (profit / cost) * 100 : 0;
+  return {
+    currency,
+    qty,
+    avgPrice,
+    currentPrice,
+    cost,
+    value,
+    profit,
+    profitPercent,
+    costKrw: convertAmount(cost, currency, "KRW"),
+    valueKrw: convertAmount(value, currency, "KRW"),
+    profitKrw: convertAmount(profit, currency, "KRW"),
+  };
 }
 
 function fallbackQuote(symbol) {
@@ -553,7 +611,7 @@ function drawChart(points, currency, canvas = el.chart) {
 }
 
 function buildResearchNotes(quote, financials) {
-  const growthPercent = Number.isFinite(financials.earningsGrowth) ? financials.earningsGrowth * 100 : null;
+  const growthPercent = getGrowthPercent(financials);
   const peg = financials.per && growthPercent && growthPercent > 0 ? financials.per / growthPercent : null;
   const category = classifyLynchCategory({
     holding: { symbol: quote.symbol, name: quote.name },
@@ -603,7 +661,7 @@ function buildResearchNotes(quote, financials) {
 
 function renderResearchDetail(quote, financials) {
   if (!el.researchChart) return;
-  const growthPercent = Number.isFinite(financials.earningsGrowth) ? financials.earningsGrowth * 100 : null;
+  const growthPercent = getGrowthPercent(financials);
   const peg = financials.per && growthPercent && growthPercent > 0 ? financials.per / growthPercent : null;
 
   el.researchType.textContent = quote.type;
@@ -644,26 +702,32 @@ async function renderPortfolio() {
 
   holdings.forEach((holding, index) => {
     const quote = quoteResults[index] || fallbackQuote(holding.symbol);
-    const fx = getFxMultiplier(holding.currency);
-    const cost = holding.qty * holding.avgPrice;
-    const value = holding.qty * quote.price;
-    const profit = value - cost;
-    totalCostKrw += cost * fx;
-    totalValueKrw += value * fx;
+    const metrics = getPortfolioRowMetrics(holding, quote);
+    totalCostKrw += metrics.costKrw;
+    totalValueKrw += metrics.valueKrw;
 
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td><strong>${escapeHtml(holding.symbol)}</strong><br><span class="muted">${escapeHtml(holding.name || quote.name)}</span></td>
+      <td><strong>${escapeHtml(holding.name || quote.name)}</strong><br><span class="muted">${escapeHtml(holding.symbol)}</span></td>
       <td>
         <input class="portfolio-edit" data-index="${index}" data-field="qty" type="number" min="0" step="0.000001" value="${holding.qty}" title="수량 수정" />
       </td>
       <td>
         <input class="portfolio-edit" data-index="${index}" data-field="avgPrice" type="number" min="0" step="0.01" value="${holding.avgPrice}" title="평균단가 수정" />
       </td>
-      <td>${formatMoney(quote.price, quote.currency || holding.currency)}</td>
-      <td>${formatMoney(value, holding.currency)}</td>
-      <td><span class="${changeClass(profit)}">${formatMoney(profit, holding.currency)}</span></td>
-      <td><button class="delete-row" data-index="${index}" title="삭제">×</button></td>
+      <td>
+        <strong>${formatMoney(metrics.currentPrice, metrics.currency)}</strong>
+        ${quote.currency !== metrics.currency ? `<br><span class="muted">${formatMoney(quote.price, quote.currency)} 환산</span>` : ""}
+      </td>
+      <td>${formatMoney(metrics.value, metrics.currency)}</td>
+      <td><span class="${changeClass(metrics.profit)}">${formatMoney(metrics.profit, metrics.currency)} (${metrics.profitPercent.toFixed(2)}%)</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="move-row" data-index="${index}" data-direction="up" title="위로" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button class="move-row" data-index="${index}" data-direction="down" title="아래로" ${index === holdings.length - 1 ? "disabled" : ""}>↓</button>
+          <button class="delete-row" data-index="${index}" title="삭제">×</button>
+        </div>
+      </td>
     `;
     el.portfolioRows.append(row);
   });
@@ -676,6 +740,238 @@ async function renderPortfolio() {
   el.totalProfit.className = totalProfit >= 0 ? "up-text" : "down-text";
   el.totalReturn.textContent = `${totalReturn.toFixed(2)}%`;
   el.totalReturn.className = totalReturn >= 0 ? "up-text" : "down-text";
+  renderPortfolioDashboard(quoteResults);
+}
+
+function buildPortfolioMetrics(quoteResults = []) {
+  const rows = holdings.map((holding, index) => {
+    const quote = quoteResults[index] || fallbackQuote(holding.symbol);
+    const metrics = getPortfolioRowMetrics(holding, quote);
+    const assetType = classifySymbol(holding.symbol);
+    return {
+      holding,
+      quote,
+      metrics,
+      assetType,
+      symbol: holding.symbol,
+      name: holding.name || quote.name,
+    };
+  });
+  const totalCostKrw = rows.reduce((sum, row) => sum + row.metrics.costKrw, 0);
+  const totalValueKrw = rows.reduce((sum, row) => sum + row.metrics.valueKrw, 0);
+  const totalProfitKrw = totalValueKrw - totalCostKrw;
+  return {
+    rows: rows.map((row) => ({
+      ...row,
+      weight: totalValueKrw ? (row.metrics.valueKrw / totalValueKrw) * 100 : 0,
+    })),
+    totalCostKrw,
+    totalValueKrw,
+    totalProfitKrw,
+    totalReturn: totalCostKrw ? (totalProfitKrw / totalCostKrw) * 100 : 0,
+  };
+}
+
+function sumWeight(rows, predicate) {
+  return rows.filter(predicate).reduce((sum, row) => sum + row.weight, 0);
+}
+
+function setText(node, value) {
+  if (node) node.textContent = value;
+}
+
+function getGrowthPercent(financials) {
+  const trailingGrowth = Number.isFinite(financials.earningsGrowth) ? financials.earningsGrowth * 100 : null;
+  const forwardGrowth =
+    Number.isFinite(financials.forwardEps) && Number.isFinite(financials.eps) && financials.eps > 0
+      ? ((financials.forwardEps - financials.eps) / financials.eps) * 100
+      : null;
+  if (Number.isFinite(forwardGrowth) && forwardGrowth > 0) return forwardGrowth;
+  return trailingGrowth;
+}
+
+function renderPortfolioDashboard(quoteResults = []) {
+  if (!el.dashboardTotalValue) return;
+  const summary = buildPortfolioMetrics(quoteResults);
+  const rows = summary.rows;
+  const winners = rows.slice().sort((a, b) => b.metrics.profitPercent - a.metrics.profitPercent);
+  const best = winners[0];
+  const worst = winners.at(-1);
+  const usdWeight = sumWeight(rows, (row) => row.metrics.currency === "USD");
+  const krwWeight = sumWeight(rows, (row) => row.metrics.currency === "KRW");
+  const cryptoWeight = sumWeight(rows, (row) => row.assetType === "Crypto");
+
+  setText(el.dashboardTotalValue, formatMoney(summary.totalValueKrw, "KRW"));
+  setText(el.dashboardTotalProfit, formatMoney(summary.totalProfitKrw, "KRW"));
+  setText(el.dashboardTotalReturn, `${summary.totalReturn.toFixed(2)}%`);
+  setText(el.dashboardPositionCount, `${rows.length}개`);
+  setText(el.dashboardUsdWeight, `${usdWeight.toFixed(1)}%`);
+  setText(el.dashboardKrwWeight, `${krwWeight.toFixed(1)}%`);
+  setText(el.dashboardCryptoWeight, `${cryptoWeight.toFixed(1)}%`);
+  setText(el.dashboardBest, best ? `최고 ${displayHoldingName(best)} ${best.metrics.profitPercent.toFixed(1)}%` : "-");
+  setText(el.dashboardWorst, worst ? `최저 ${displayHoldingName(worst)} ${worst.metrics.profitPercent.toFixed(1)}%` : "-");
+  el.dashboardTotalProfit?.classList.toggle("down-text", summary.totalProfitKrw < 0);
+  el.dashboardTotalProfit?.classList.toggle("up-text", summary.totalProfitKrw >= 0);
+  el.dashboardTotalReturn?.classList.toggle("down-text", summary.totalReturn < 0);
+  el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
+
+  renderDashboardLeaders(rows);
+  renderDashboardMix(rows);
+  drawAllocationChart(rows);
+  drawPerformanceChart(rows);
+  renderDashboardBrief(summary);
+}
+
+function renderDashboardLeaders(rows) {
+  if (!el.dashboardLeaders) return;
+  if (!rows.length) {
+    el.dashboardLeaders.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 손익 순위가 표시됩니다.</p>`;
+    return;
+  }
+  el.dashboardLeaders.innerHTML = rows
+    .slice()
+    .sort((a, b) => b.metrics.profitKrw - a.metrics.profitKrw)
+    .slice(0, 6)
+    .map(
+      (row) => `
+        <article class="dashboard-row">
+          <div><strong>${escapeHtml(displayHoldingName(row))}</strong><span>${escapeHtml(row.symbol)}</span></div>
+          <div>
+            <strong class="${row.metrics.profitKrw >= 0 ? "up-text" : "down-text"}">${formatMoney(row.metrics.profit, row.metrics.currency)}</strong>
+            <span>${row.metrics.profitPercent.toFixed(2)}% · 비중 ${row.weight.toFixed(1)}%</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderDashboardMix(rows) {
+  if (!el.dashboardMix) return;
+  const groups = [
+    { label: "미국주식", value: sumWeight(rows, (row) => row.assetType === "US Stock") },
+    { label: "한국주식", value: sumWeight(rows, (row) => row.assetType === "KR Stock") },
+    { label: "암호화폐", value: sumWeight(rows, (row) => row.assetType === "Crypto") },
+  ];
+  el.dashboardMix.innerHTML = groups
+    .map(
+      (group) => `
+        <div class="mix-row">
+          <span>${group.label}</span>
+          <strong>${group.value.toFixed(1)}%</strong>
+          <i style="--bar:${Math.max(group.value, 1)}%"></i>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderDashboardBrief(summary) {
+  if (!el.dashboardBrief) return;
+  const largest = summary.rows.slice().sort((a, b) => b.weight - a.weight)[0];
+  const cashTone = summary.totalProfitKrw >= 0 ? "수익 구간" : "손실 구간";
+  const concentration =
+    largest && largest.weight >= 35
+      ? `${displayHoldingName(largest)} 비중이 ${largest.weight.toFixed(1)}%로 큽니다.`
+      : "단일 종목 집중도는 과하지 않습니다.";
+  el.dashboardBrief.innerHTML = `
+    <article><strong>${cashTone}</strong><span>총 수익률 ${summary.totalReturn.toFixed(2)}%, 평가손익 ${formatMoney(summary.totalProfitKrw, "KRW")}</span></article>
+    <article><strong>집중도</strong><span>${concentration}</span></article>
+    <article><strong>환율</strong><span>USD/KRW ${formatNumber(fxRate.usdKrw, 2)} 기준으로 원화 평가금액을 계산했습니다.</span></article>
+  `;
+}
+
+function drawAllocationChart(rows) {
+  const canvas = el.dashboardAllocationChart;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  const groups = [
+    { label: "US", value: sumWeight(rows, (row) => row.assetType === "US Stock"), color: "#75d37b" },
+    { label: "KR", value: sumWeight(rows, (row) => row.assetType === "KR Stock"), color: "#f5c35b" },
+    { label: "Crypto", value: sumWeight(rows, (row) => row.assetType === "Crypto"), color: "#5bb8f5" },
+  ].filter((group) => group.value > 0);
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = Math.min(width, height) * 0.32;
+  if (!groups.length) {
+    ctx.fillStyle = "#9ba89d";
+    ctx.font = "14px system-ui";
+    ctx.fillText("포트폴리오 종목을 추가하세요.", 28, 44);
+    return;
+  }
+  let start = -Math.PI / 2;
+  groups.forEach((group) => {
+    const angle = (group.value / 100) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius, start, start + angle);
+    ctx.closePath();
+    ctx.fillStyle = group.color;
+    ctx.fill();
+    start += angle;
+  });
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.58, 0, Math.PI * 2);
+  ctx.fillStyle = "#181d1a";
+  ctx.fill();
+  ctx.fillStyle = "#eef4ee";
+  ctx.font = "bold 18px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("자산배분", cx, cy + 6);
+  ctx.textAlign = "left";
+  groups.forEach((group, index) => {
+    const y = 28 + index * 24;
+    ctx.fillStyle = group.color;
+    ctx.fillRect(24, y - 10, 12, 12);
+    ctx.fillStyle = "#eef4ee";
+    ctx.font = "13px system-ui";
+    ctx.fillText(`${group.label} ${group.value.toFixed(1)}%`, 44, y);
+  });
+}
+
+function drawPerformanceChart(rows) {
+  const canvas = el.dashboardPerformanceChart;
+  if (!canvas) return;
+  canvas.height = Math.max(360, rows.length * 44 + 72);
+  canvas.style.aspectRatio = `${canvas.width} / ${canvas.height}`;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  if (!rows.length) {
+    ctx.fillStyle = "#9ba89d";
+    ctx.font = "14px system-ui";
+    ctx.fillText("손익 데이터가 없습니다.", 28, 44);
+    return;
+  }
+  const chartRows = rows.slice().sort((a, b) => b.metrics.profitPercent - a.metrics.profitPercent);
+  const max = Math.max(10, ...chartRows.map((row) => Math.abs(row.metrics.profitPercent)));
+  const hasPositive = chartRows.some((row) => row.metrics.profitPercent > 0);
+  const hasNegative = chartRows.some((row) => row.metrics.profitPercent < 0);
+  const mid = hasPositive && hasNegative ? width / 2 : hasNegative ? width - 132 : 132;
+  const padY = 34;
+  const barH = Math.max(18, (height - padY * 2) / chartRows.length - 10);
+  ctx.strokeStyle = "rgba(238, 244, 238, 0.14)";
+  ctx.beginPath();
+  ctx.moveTo(mid, 18);
+  ctx.lineTo(mid, height - 18);
+  ctx.stroke();
+  chartRows.forEach((row, index) => {
+    const y = padY + index * (barH + 10);
+    const pct = row.metrics.profitPercent;
+    const availableWidth = pct >= 0 ? width - mid - 132 : mid - 132;
+    const barW = (Math.abs(pct) / max) * Math.max(availableWidth, width * 0.28);
+    ctx.fillStyle = pct >= 0 ? "#75d37b" : "#ff6b6b";
+    ctx.fillRect(pct >= 0 ? mid : mid - barW, y, barW, barH);
+    ctx.fillStyle = "#eef4ee";
+    ctx.font = "bold 12px system-ui";
+    ctx.textAlign = pct >= 0 ? "left" : "right";
+    ctx.fillText(`${displayHoldingName(row)} ${pct.toFixed(1)}%`, pct >= 0 ? mid + barW + 8 : mid - barW - 8, y + barH / 2 + 4);
+  });
+  ctx.textAlign = "left";
 }
 
 function getPegOpinion(peg, growthPercent) {
@@ -717,7 +1013,7 @@ function renderLynchCategories(rows = []) {
           <div class="category-holdings">
             ${
               matches.length
-                ? matches.map((row) => `<span>${escapeHtml(row.symbol)}</span>`).join("")
+                ? matches.map((row) => `<span>${escapeHtml(displayHoldingName(row))}</span>`).join("")
                 : `<em>해당 종목 없음</em>`
             }
           </div>
@@ -734,6 +1030,18 @@ function isLynchViewActive() {
 
 function isBuffettViewActive() {
   return document.querySelector("#buffettView")?.classList.contains("active");
+}
+
+function setSearchVisibility(viewName) {
+  const form = document.querySelector("#symbolForm");
+  if (!form) return;
+  form.hidden = viewName !== "research";
+}
+
+function suggestedHoldingCurrency(symbol) {
+  const normalized = normalizeSymbol(symbol || "");
+  if (normalized.endsWith(".KS") || normalized.endsWith(".KQ") || normalized.endsWith("-USD")) return "KRW";
+  return "USD";
 }
 
 function formatPercent(value) {
@@ -807,17 +1115,15 @@ async function buildLynchRows() {
   const financials = await Promise.all(uniqueHoldings.map((holding) => getFinancials(holding.symbol)));
   const totalValue = uniqueHoldings.reduce((sum, holding, index) => {
     const quote = quotes[index];
-    const fx = getFxMultiplier(holding.currency);
-    return sum + Number(holding.qty || 0) * Number(quote.price || 0) * fx;
+    return sum + getPortfolioRowMetrics(holding, quote).valueKrw;
   }, 0);
 
   return uniqueHoldings.map((holding, index) => {
     const quote = quotes[index];
     const data = financials[index];
-    const growthPercent = Number.isFinite(data.earningsGrowth) ? data.earningsGrowth * 100 : null;
+    const growthPercent = getGrowthPercent(data);
     const peg = data.per && growthPercent && growthPercent > 0 ? data.per / growthPercent : null;
-    const fx = getFxMultiplier(holding.currency);
-    const value = Number(holding.qty || 0) * Number(quote.price || 0) * fx;
+    const value = getPortfolioRowMetrics(holding, quote).valueKrw;
     const category = classifyLynchCategory({ holding, quote, financials: data, growthPercent, peg });
     const debtToEquity = getDebtEquityPercent(data);
     const netCash = getNetCash(data);
@@ -876,7 +1182,7 @@ async function renderLynchAnalysis() {
     .map(
       (row) => `
         <article class="lynch-card ${row.opinion.tone}">
-          <span>${escapeHtml(row.symbol)}</span>
+          <span>${escapeHtml(displayHoldingName(row))}</span>
           <strong>${Number.isFinite(row.peg) ? row.peg.toFixed(2) : "-"}</strong>
           <p>${escapeHtml(LYNCH_CATEGORIES[row.category].title)} · ${escapeHtml(row.opinion.label)}</p>
         </article>
@@ -888,7 +1194,7 @@ async function renderLynchAnalysis() {
     .map(
       (row) => `
         <tr>
-          <td><strong>${escapeHtml(row.symbol)}</strong><br><span class="muted">${escapeHtml(row.name)}</span></td>
+          <td><strong>${escapeHtml(displayHoldingName(row))}</strong><br><span class="muted">${escapeHtml(row.symbol)}</span></td>
           <td>${formatPercent(row.weight)}</td>
           <td>${formatNumber(row.per)}</td>
           <td>${formatPercent(row.growthPercent)}</td>
@@ -921,7 +1227,7 @@ function renderLynchHealth(rows) {
         : "데이터 부족";
       return `
         <tr>
-          <td><strong>${escapeHtml(row.symbol)}</strong><br><span class="muted">${escapeHtml(row.name)}</span></td>
+          <td><strong>${escapeHtml(displayHoldingName(row))}</strong><br><span class="muted">${escapeHtml(row.symbol)}</span></td>
           <td>${formatRatio(row.debtToEquity)}</td>
           <td>${formatCompact(row.totalCash, "USD")}</td>
           <td>${formatCompact(row.totalDebt, "USD")}</td>
@@ -978,7 +1284,7 @@ function drawPegChart(rows) {
     ctx.fillRect(pad, y, Math.max(barWidth, 3), barHeight);
     ctx.fillStyle = "#eef4ee";
     ctx.font = "bold 12px system-ui";
-    ctx.fillText(row.symbol, 10, y + barHeight / 2 + 4);
+    ctx.fillText(displayHoldingName(row), 10, y + barHeight / 2 + 4);
     ctx.textAlign = "right";
     ctx.fillText(Number.isFinite(row.peg) ? row.peg.toFixed(2) : "-", width - 10, y + barHeight / 2 + 4);
     ctx.textAlign = "left";
@@ -1019,7 +1325,7 @@ async function renderBuffettAnalysis() {
     .map(
       (row) => `
         <tr>
-          <td><strong>${escapeHtml(row.symbol)}</strong><br><span class="muted">${escapeHtml(row.name)}</span></td>
+          <td><strong>${escapeHtml(displayHoldingName(row))}</strong><br><span class="muted">${escapeHtml(row.symbol)}</span></td>
           <td><span class="lynch-pill ${row.score >= 70 ? "good" : row.score >= 45 ? "watch" : "bad"}">${row.score}점</span></td>
           <td>${formatPercent((row.returnOnEquity ?? NaN) * 100)}</td>
           <td>${formatPercent((row.profitMargins ?? NaN) * 100)}</td>
@@ -1064,7 +1370,7 @@ function drawBuffettChart(rows) {
     ctx.fillStyle = "#eef4ee";
     ctx.font = "bold 12px system-ui";
     ctx.textAlign = "left";
-    ctx.fillText(row.symbol, 10, y + barHeight / 2 + 4);
+    ctx.fillText(displayHoldingName(row), 10, y + barHeight / 2 + 4);
     ctx.textAlign = "right";
     ctx.fillText(`${row.score}점`, width - 10, y + barHeight / 2 + 4);
   });
@@ -1083,6 +1389,9 @@ function bindEvents() {
       document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
       button.classList.add("active");
       document.querySelector(`#${button.dataset.view}View`).classList.add("active");
+      setSearchVisibility(button.dataset.view);
+      if (button.dataset.view === "dashboard") renderPortfolio();
+      if (button.dataset.view === "portfolio") renderPortfolio();
       if (button.dataset.view === "lynch") renderLynchAnalysis();
       if (button.dataset.view === "buffett") renderBuffettAnalysis();
     });
@@ -1163,7 +1472,9 @@ function bindEvents() {
       avgPrice: Number(document.querySelector("#holdingAvg").value),
       currency: document.querySelector("#holdingCurrency").value,
     };
-    holdings = holdings.filter((item) => item.symbol !== holding.symbol).concat(holding);
+    const existingIndex = holdings.findIndex((item) => normalizeSymbol(item.symbol) === holding.symbol);
+    if (existingIndex >= 0) holdings[existingIndex] = holding;
+    else holdings = holdings.concat(holding);
     saveHoldings();
     event.target.reset();
     await renderSelectedQuote();
@@ -1171,7 +1482,25 @@ function bindEvents() {
     if (isBuffettViewActive()) await renderBuffettAnalysis();
   });
 
+  document.querySelector("#holdingSymbol").addEventListener("change", (event) => {
+    document.querySelector("#holdingCurrency").value = suggestedHoldingCurrency(event.target.value);
+  });
+
   el.portfolioRows.addEventListener("click", async (event) => {
+    const moveButton = event.target.closest(".move-row");
+    if (moveButton) {
+      const index = Number(moveButton.dataset.index);
+      const direction = moveButton.dataset.direction === "up" ? -1 : 1;
+      const nextIndex = index + direction;
+      if (holdings[index] && holdings[nextIndex]) {
+        [holdings[index], holdings[nextIndex]] = [holdings[nextIndex], holdings[index]];
+        saveHoldings();
+        await renderSelectedQuote();
+        if (isLynchViewActive()) await renderLynchAnalysis();
+        if (isBuffettViewActive()) await renderBuffettAnalysis();
+      }
+      return;
+    }
     const button = event.target.closest(".delete-row");
     if (!button) return;
     holdings.splice(Number(button.dataset.index), 1);
@@ -1219,6 +1548,7 @@ function tickClock() {
 
 async function init() {
   bindEvents();
+  setSearchVisibility("dashboard");
   renderWatchlist();
   tickClock();
   setInterval(tickClock, 1000);

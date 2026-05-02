@@ -235,6 +235,54 @@ async function fetchNaverCompanyAnalysis(code) {
   };
 }
 
+async function fetchNaverInvestmentRatios(code) {
+  const referer = `https://navercomp.wisereport.co.kr/v2/company/c1040001.aspx?cmp_cd=${encodeURIComponent(code)}`;
+  const response = await fetch(referer, {
+    headers: {
+      "User-Agent": yahooHeaders["User-Agent"],
+      Accept: "text/html,*/*",
+    },
+  });
+  if (!response.ok) throw new Error(`Naver investment ratios request failed: ${response.status}`);
+
+  const html = await response.text();
+  const encparam = html.match(/encparam:\s*'([^']+)'/)?.[1];
+  if (!encparam) return {};
+
+  const fetchRatioReport = (rpt) => {
+    const params = new URLSearchParams({
+      cmp_cd: code,
+      frq: "0",
+      rpt: String(rpt),
+      finGubun: "MAIN",
+      frqTyp: "0",
+      cn: "",
+      encparam,
+    });
+    return fetchJson(`https://navercomp.wisereport.co.kr/v2/company/cF4002.aspx?${params.toString()}`, {
+      headers: {
+        Accept: "application/json,text/plain,*/*",
+        Referer: referer,
+      },
+    });
+  };
+
+  const [profitabilityPayload, stabilityPayload] = await Promise.all([fetchRatioReport(0), fetchRatioReport(3)]);
+  const profitability = extractNaverRows(profitabilityPayload);
+  const stability = extractNaverRows(stabilityPayload);
+  const roe = latestNaverValue(findNaverRow(profitability, ["ROE"]));
+  const profitMargin = latestNaverValue(findNaverRow(profitability, ["순이익률"]));
+  const debtToEquity = latestNaverValue(findNaverRow(stability, ["부채비율"]));
+  const currentRatio = latestNaverValue(findNaverRow(stability, ["유동비율"]));
+
+  return {
+    returnOnEquity: Number.isFinite(roe) ? roe / 100 : null,
+    profitMargins: Number.isFinite(profitMargin) ? profitMargin / 100 : null,
+    debtToEquity: Number.isFinite(debtToEquity) ? debtToEquity : null,
+    currentRatio: Number.isFinite(currentRatio) ? currentRatio / 100 : null,
+  };
+}
+
 async function fetchNaverConsensus(code) {
   const url = `https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${encodeURIComponent(code)}`;
   const response = await fetch(url, {
@@ -278,6 +326,7 @@ async function fetchNaverFinancials(symbol) {
   const netMargin = parseNaverMetric(html, "순이익률");
   let realtime = {};
   let analysis = {};
+  let ratios = {};
   let consensus = {};
   try {
     realtime = await fetchJson(`https://finance.naver.com/item/siseLast.naver?code=${encodeURIComponent(code)}`, {
@@ -292,6 +341,11 @@ async function fetchNaverFinancials(symbol) {
     analysis = await fetchNaverCompanyAnalysis(code);
   } catch {
     analysis = {};
+  }
+  try {
+    ratios = await fetchNaverInvestmentRatios(code);
+  } catch {
+    ratios = {};
   }
   try {
     consensus = await fetchNaverConsensus(code);
@@ -324,11 +378,11 @@ async function fetchNaverFinancials(symbol) {
             forwardEps: { raw: consensus.forwardEps ?? null },
             totalCash: { raw: analysis.totalCash ?? null },
             totalDebt: { raw: analysis.totalDebt ?? null },
-            debtToEquity: { raw: analysis.debtToEquity ?? null },
-            returnOnEquity: { raw: analysis.returnOnEquity ?? (Number.isFinite(roe) ? roe / 100 : null) },
-            profitMargins: { raw: analysis.profitMargins ?? (Number.isFinite(netMargin) ? netMargin / 100 : null) },
+            debtToEquity: { raw: ratios.debtToEquity ?? analysis.debtToEquity ?? null },
+            returnOnEquity: { raw: ratios.returnOnEquity ?? analysis.returnOnEquity ?? (Number.isFinite(roe) ? roe / 100 : null) },
+            profitMargins: { raw: ratios.profitMargins ?? analysis.profitMargins ?? (Number.isFinite(netMargin) ? netMargin / 100 : null) },
             freeCashflow: { raw: analysis.freeCashflow ?? null },
-            currentRatio: { raw: analysis.currentRatio ?? null },
+            currentRatio: { raw: ratios.currentRatio ?? analysis.currentRatio ?? null },
           },
           price: {
             regularMarketPrice: { raw: Number(realtime.now) || null },

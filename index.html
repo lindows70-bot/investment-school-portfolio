@@ -128,6 +128,64 @@
             </section>
           </div>
 
+          <section class="dashboard-overview">
+            <section class="dashboard-hero-panel">
+              <div>
+                <p class="eyebrow">PORTFOLIO DASHBOARD</p>
+                <h2>내 포트폴리오 한눈에 보기</h2>
+                <p>보유 종목의 총 평가금액, 손익, 자산배분, 집중도와 환율 영향을 원화 기준으로 정리합니다.</p>
+              </div>
+              <div class="dashboard-hero-metrics">
+                <div><span>총 평가금액</span><strong id="dashboardTotalValue">-</strong></div>
+                <div><span>평가손익</span><strong id="dashboardTotalProfit">-</strong></div>
+                <div><span>수익률</span><strong id="dashboardTotalReturn">0.00%</strong></div>
+                <div><span>보유 종목</span><strong id="dashboardPositionCount">0개</strong></div>
+              </div>
+            </section>
+
+            <section class="dashboard-card-grid">
+              <article class="dashboard-card"><span>USD 입력 비중</span><strong id="dashboardUsdWeight">0.0%</strong></article>
+              <article class="dashboard-card"><span>KRW 입력 비중</span><strong id="dashboardKrwWeight">0.0%</strong></article>
+              <article class="dashboard-card"><span>암호화폐 비중</span><strong id="dashboardCryptoWeight">0.0%</strong></article>
+              <article class="dashboard-card"><span>최고/최저 수익률</span><strong><em id="dashboardBest">-</em><em id="dashboardWorst">-</em></strong></article>
+            </section>
+
+            <section class="dashboard-grid">
+              <div class="panel dashboard-panel">
+                <div class="section-title">
+                  <h2>자산배분</h2>
+                  <span class="muted">평가금액 기준</span>
+                </div>
+                <canvas id="dashboardAllocationChart" width="640" height="360"></canvas>
+                <div id="dashboardMix" class="dashboard-mix"></div>
+              </div>
+              <div class="panel dashboard-panel">
+                <div class="section-title">
+                  <h2>종목별 수익률</h2>
+                  <span class="muted">입력 통화 기준</span>
+                </div>
+                <canvas id="dashboardPerformanceChart" width="640" height="360"></canvas>
+              </div>
+            </section>
+
+            <section class="dashboard-grid lower">
+              <div class="panel dashboard-panel">
+                <div class="section-title">
+                  <h2>손익 리더보드</h2>
+                  <span class="muted">원화 환산 손익순</span>
+                </div>
+                <div id="dashboardLeaders" class="dashboard-list"></div>
+              </div>
+              <div class="panel dashboard-panel">
+                <div class="section-title">
+                  <h2>포트폴리오 브리핑</h2>
+                  <span class="muted">자동 요약</span>
+                </div>
+                <div id="dashboardBrief" class="dashboard-brief"></div>
+              </div>
+            </section>
+          </section>
+
           <section class="portfolio-summary">
             <div class="summary-card">
               <span>총 평가금액</span>
