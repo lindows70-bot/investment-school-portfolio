@@ -115,6 +115,149 @@ function parseNaverMetricValues(html, label) {
     .filter((value) => Number.isFinite(value) && value !== 0);
 }
 
+function naverNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/,/g, "").replace(/%/g, "").trim();
+  if (!normalized || normalized === "-" || normalized === "N/A") return null;
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeNaverLabel(value) {
+  return String(value || "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, "")
+    .replace(/[\s.·ㆍ()]/g, "")
+    .trim();
+}
+
+function naverRowLabel(row) {
+  return normalizeNaverLabel(row?.ACC_NM || row?.acc_nm || row?.NM || row?.name || "");
+}
+
+function findNaverRow(rows, labels) {
+  const normalizedLabels = labels.map(normalizeNaverLabel);
+  return (rows || []).find((row) => {
+    const label = naverRowLabel(row);
+    return normalizedLabels.some((target) => label.includes(target));
+  });
+}
+
+function latestNaverValue(row, options = {}) {
+  if (!row) return null;
+  const actualKeys = ["DATA5", "DATA4", "DATA3", "DATA2", "DATA1", "DATA6"];
+  const estimateKeys = ["DATA6", "DATA5", "DATA4", "DATA3", "DATA2", "DATA1"];
+  const keys = options.preferEstimate ? estimateKeys : actualKeys;
+  for (const key of keys) {
+    const value = naverNumber(row[key] ?? row[key.toLowerCase()]);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function naverHundredMillionWon(value) {
+  return Number.isFinite(value) ? value * 100_000_000 : null;
+}
+
+function extractNaverRows(payload) {
+  return Array.isArray(payload?.DATA) ? payload.DATA : [];
+}
+
+async function fetchNaverAnalysisReport(code, encparam, rpt, referer) {
+  const params = new URLSearchParams({
+    cmp_cd: code,
+    frq: "0",
+    rpt: String(rpt),
+    finGubun: "MAIN",
+    frqTyp: "0",
+    cn: "",
+    encparam,
+  });
+  return fetchJson(`https://navercomp.wisereport.co.kr/v2/company/cF3002.aspx?${params.toString()}`, {
+    headers: {
+      Accept: "application/json,text/plain,*/*",
+      Referer: referer,
+    },
+  });
+}
+
+async function fetchNaverCompanyAnalysis(code) {
+  const referer = `https://navercomp.wisereport.co.kr/v2/company/c1030001.aspx?cmp_cd=${encodeURIComponent(code)}`;
+  const response = await fetch(referer, {
+    headers: {
+      "User-Agent": yahooHeaders["User-Agent"],
+      Accept: "text/html,*/*",
+    },
+  });
+  if (!response.ok) throw new Error(`Naver analysis request failed: ${response.status}`);
+
+  const html = await response.text();
+  const encparam = html.match(/encparam:\s*'([^']+)'/)?.[1];
+  if (!encparam) return {};
+
+  const [incomePayload, balancePayload, cashflowPayload] = await Promise.all([
+    fetchNaverAnalysisReport(code, encparam, 0, referer),
+    fetchNaverAnalysisReport(code, encparam, 1, referer),
+    fetchNaverAnalysisReport(code, encparam, 2, referer),
+  ]);
+
+  const income = extractNaverRows(incomePayload);
+  const balance = extractNaverRows(balancePayload);
+  const cashflow = extractNaverRows(cashflowPayload);
+  const revenue = latestNaverValue(findNaverRow(income, ["매출액", "수익"]));
+  const netIncome = latestNaverValue(findNaverRow(income, ["당기순이익", "순이익"]));
+  const totalCash = latestNaverValue(findNaverRow(balance, ["현금및현금성자산", "현금성자산"]));
+  const totalDebt = latestNaverValue(findNaverRow(balance, ["부채총계"]));
+  const equity = latestNaverValue(findNaverRow(balance, ["자본총계"]));
+  const currentAssets = latestNaverValue(findNaverRow(balance, ["유동자산"]));
+  const currentLiabilities = latestNaverValue(findNaverRow(balance, ["유동부채"]));
+  const operatingCashflow = latestNaverValue(findNaverRow(cashflow, ["영업활동으로인한현금흐름", "영업활동현금흐름"]));
+  const freeCashflow = latestNaverValue(findNaverRow(cashflow, ["FCF", "잉여현금흐름"]));
+  const capex = latestNaverValue(findNaverRow(cashflow, ["유형자산의취득", "설비투자"]));
+  const estimatedFreeCashflow =
+    Number.isFinite(freeCashflow) ? freeCashflow : Number.isFinite(operatingCashflow) && Number.isFinite(capex)
+      ? operatingCashflow - Math.abs(capex)
+      : null;
+
+  return {
+    totalCash: naverHundredMillionWon(totalCash),
+    totalDebt: naverHundredMillionWon(totalDebt),
+    debtToEquity: Number.isFinite(totalDebt) && Number.isFinite(equity) && equity !== 0 ? (totalDebt / equity) * 100 : null,
+    returnOnEquity:
+      Number.isFinite(netIncome) && Number.isFinite(equity) && equity !== 0 ? netIncome / equity : null,
+    profitMargins: Number.isFinite(netIncome) && Number.isFinite(revenue) && revenue !== 0 ? netIncome / revenue : null,
+    freeCashflow: naverHundredMillionWon(estimatedFreeCashflow),
+    currentRatio:
+      Number.isFinite(currentAssets) && Number.isFinite(currentLiabilities) && currentLiabilities !== 0
+        ? currentAssets / currentLiabilities
+        : null,
+  };
+}
+
+async function fetchNaverConsensus(code) {
+  const url = `https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${encodeURIComponent(code)}`;
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": yahooHeaders["User-Agent"],
+      Accept: "text/html,*/*",
+    },
+  });
+  if (!response.ok) throw new Error(`Naver consensus request failed: ${response.status}`);
+
+  const html = await response.text();
+  const table = html.match(/<table[^>]+id=["']cTB15["'][\s\S]*?<\/table>/i)?.[0] || "";
+  const text = table.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ");
+  const values = [...text.matchAll(/[-+]?\d[\d,]*(?:\.\d+)?/g)]
+    .map((match) => naverNumber(match[0]))
+    .filter((value) => Number.isFinite(value));
+
+  return {
+    forwardEps: values.length >= 5 ? values[3] : null,
+    targetPrice: values.length >= 4 ? values[2] : null,
+  };
+}
+
 async function fetchNaverFinancials(symbol) {
   const code = symbol.replace(/\.(KS|KQ)$/i, "");
   const response = await fetch(`https://finance.naver.com/item/main.naver?code=${encodeURIComponent(code)}`, {
@@ -131,7 +274,11 @@ async function fetchNaverFinancials(symbol) {
   const bps = parseNaverMetric(html, "BPS");
   const pbr = parseNaverMetric(html, "PBR");
   const per = parseNaverMetric(html, "PER");
+  const roe = parseNaverMetric(html, "ROE");
+  const netMargin = parseNaverMetric(html, "순이익률");
   let realtime = {};
+  let analysis = {};
+  let consensus = {};
   try {
     realtime = await fetchJson(`https://finance.naver.com/item/siseLast.naver?code=${encodeURIComponent(code)}`, {
       headers: {
@@ -140,6 +287,16 @@ async function fetchNaverFinancials(symbol) {
     });
   } catch {
     realtime = {};
+  }
+  try {
+    analysis = await fetchNaverCompanyAnalysis(code);
+  } catch {
+    analysis = {};
+  }
+  try {
+    consensus = await fetchNaverConsensus(code);
+  } catch {
+    consensus = {};
   }
   const marketCap = Number.isFinite(Number(realtime.marketSum))
     ? Math.trunc(Number(realtime.marketSum) / 100) * 100_000_000
@@ -155,7 +312,7 @@ async function fetchNaverFinancials(symbol) {
         {
           defaultKeyStatistics: {
             trailingEps: { raw: latestEps },
-            forwardEps: { raw: null },
+            forwardEps: { raw: consensus.forwardEps ?? null },
             bookValue: { raw: bps },
             priceToBook: { raw: Number(realtime.pbr) || pbr },
           },
@@ -164,13 +321,14 @@ async function fetchNaverFinancials(symbol) {
           },
           financialData: {
             earningsGrowth: { raw: earningsGrowth },
-            totalCash: { raw: null },
-            totalDebt: { raw: null },
-            debtToEquity: { raw: null },
-            returnOnEquity: { raw: null },
-            profitMargins: { raw: null },
-            freeCashflow: { raw: null },
-            currentRatio: { raw: null },
+            forwardEps: { raw: consensus.forwardEps ?? null },
+            totalCash: { raw: analysis.totalCash ?? null },
+            totalDebt: { raw: analysis.totalDebt ?? null },
+            debtToEquity: { raw: analysis.debtToEquity ?? null },
+            returnOnEquity: { raw: analysis.returnOnEquity ?? (Number.isFinite(roe) ? roe / 100 : null) },
+            profitMargins: { raw: analysis.profitMargins ?? (Number.isFinite(netMargin) ? netMargin / 100 : null) },
+            freeCashflow: { raw: analysis.freeCashflow ?? null },
+            currentRatio: { raw: analysis.currentRatio ?? null },
           },
           price: {
             regularMarketPrice: { raw: Number(realtime.now) || null },
