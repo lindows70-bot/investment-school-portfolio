@@ -85,6 +85,7 @@ const el = {
   researchPrice: document.querySelector("#researchPrice"),
   researchChange: document.querySelector("#researchChange"),
   researchChart: document.querySelector("#researchChart"),
+  researchChartPeriod: document.querySelector("#researchChartPeriod"),
   researchRangeTabs: document.querySelector("#researchRangeTabs"),
   researchUpdated: document.querySelector("#researchUpdated"),
   researchPer: document.querySelector("#researchPer"),
@@ -309,11 +310,26 @@ function classifySymbol(symbol) {
 function isEtfHolding(rowOrHolding) {
   const symbol = normalizeSymbol(rowOrHolding?.symbol || rowOrHolding?.holding?.symbol || "");
   const name = String(rowOrHolding?.name || rowOrHolding?.holding?.name || rowOrHolding?.quote?.name || "").toLowerCase();
+  const compactName = name.replace(/\s+/g, "");
   return (
     symbol.includes("ETF") ||
     name.includes("etf") ||
     name.includes("tiger") ||
     name.includes("kodex") ||
+    name.includes("ace") ||
+    name.includes("plus") ||
+    compactName.includes("1q") ||
+    compactName.includes("sol") ||
+    compactName.includes("hanaro") ||
+    compactName.includes("kbstar") ||
+    compactName.includes("arirang") ||
+    compactName.includes("히어로즈") ||
+    compactName.includes("마이티") ||
+    compactName.includes("액티브") ||
+    compactName.includes("인덱스") ||
+    compactName.includes("레버리지") ||
+    compactName.includes("인버스") ||
+    compactName.includes("선물") ||
     name.includes("s&p") ||
     name.includes("200")
   );
@@ -700,6 +716,7 @@ function renderResearchDetail(quote, financials) {
   el.researchForwardEps.textContent = formatNumber(financials.forwardEps);
   el.researchPeg.textContent = Number.isFinite(peg) ? peg.toFixed(2) : "-";
   el.researchMarketCap.textContent = financials.marketCap ? formatCompact(financials.marketCap, financials.currency) : "-";
+  setText(el.researchChartPeriod, `${rangeLabel(researchRange.range)} 차트`);
 
   drawChart(quote.points, quote.currency, el.researchChart);
   el.researchNotes.innerHTML = buildResearchNotes(quote, financials)
@@ -901,6 +918,7 @@ function renderDashboardMiniCharts(rows) {
           <svg viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
             <path d="${path}" class="${row.quote.changePercent >= 0 ? "mini-up" : "mini-down"}"></path>
           </svg>
+          <div class="mini-chart-period">${rangeLabel("1d")}</div>
           <div class="mini-chart-return">
             <strong class="${row.metrics.profitKrw >= 0 ? "up-text" : "down-text"}">${row.metrics.profitPercent.toFixed(1)}%</strong>
             <span>${formatMoney(row.metrics.value, row.metrics.currency)}</span>
@@ -1117,6 +1135,16 @@ function formatPercent(value) {
 function formatRatio(value) {
   if (!Number.isFinite(value)) return "-";
   return `${value.toFixed(1)}%`;
+}
+
+function rangeLabel(range) {
+  return {
+    "1d": "1일",
+    "5d": "1주",
+    "1mo": "1개월",
+    "6mo": "6개월",
+    "1y": "1년",
+  }[range] || range.toUpperCase();
 }
 
 function getNetCash(financials) {

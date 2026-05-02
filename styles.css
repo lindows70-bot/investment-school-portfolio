@@ -502,11 +502,11 @@ select:focus {
 .dashboard-card strong em {
   display: block;
   max-width: 100%;
-  overflow: hidden;
   font-style: normal;
+  font-size: clamp(13px, 1.2vw, 16px);
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 #dashboardBest {
@@ -559,7 +559,7 @@ select:focus {
 
 .mini-chart-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1.1fr) minmax(88px, 0.8fr) auto;
+  grid-template-columns: 28px minmax(0, 1.1fr) minmax(88px, 0.8fr) 34px auto;
   gap: 10px;
   align-items: center;
 }
@@ -599,6 +599,15 @@ select:focus {
 .mini-chart-row svg {
   width: 100%;
   height: 34px;
+}
+
+.mini-chart-period,
+.chart-period-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .mini-chart-row path {
@@ -1072,6 +1081,11 @@ th {
 
 .research-range-tabs {
   margin: 0 0 14px;
+}
+
+.chart-period-label {
+  margin-top: 8px;
+  text-align: right;
 }
 
 .compact-heading h2 {
