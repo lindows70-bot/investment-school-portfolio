@@ -204,6 +204,46 @@
               <button class="guide-item" data-symbol="XRP-USD"><strong>XRP-USD</strong><span>XRP</span></button>
             </div>
           </section>
+
+          <section class="research-detail-grid">
+            <div class="panel research-chart-panel">
+              <div class="quote-heading compact-heading">
+                <div>
+                  <p id="researchType" class="eyebrow">RESEARCH</p>
+                  <h2 id="researchName">Apple Inc.</h2>
+                  <p id="researchSymbol">AAPL</p>
+                </div>
+                <div class="quote-price">
+                  <strong id="researchPrice">$0.00</strong>
+                  <span id="researchChange" class="change neutral">0.00%</span>
+                </div>
+              </div>
+              <canvas id="researchChart" width="960" height="320"></canvas>
+            </div>
+
+            <div class="panel research-score-panel">
+              <div class="section-title">
+                <h2>핵심 지표</h2>
+                <span id="researchUpdated" class="muted">-</span>
+              </div>
+              <div class="research-metrics">
+                <div><span>PER</span><strong id="researchPer">-</strong></div>
+                <div><span>PBR</span><strong id="researchPbr">-</strong></div>
+                <div><span>EPS</span><strong id="researchEps">-</strong></div>
+                <div><span>EPS 성장률</span><strong id="researchGrowth">-</strong></div>
+                <div><span>PEG</span><strong id="researchPeg">-</strong></div>
+                <div><span>시가총액</span><strong id="researchMarketCap">-</strong></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel research-notes-panel">
+            <div class="section-title">
+              <h2>리서치 체크포인트</h2>
+              <span class="muted">자동 요약</span>
+            </div>
+            <div id="researchNotes" class="research-notes"></div>
+          </section>
         </section>
 
         <section id="lynchView" class="view">

@@ -55,6 +55,20 @@ const el = {
   lynchRows: document.querySelector("#lynchRows"),
   lynchCategoryGrid: document.querySelector("#lynchCategoryGrid"),
   pegChart: document.querySelector("#pegChart"),
+  researchType: document.querySelector("#researchType"),
+  researchName: document.querySelector("#researchName"),
+  researchSymbol: document.querySelector("#researchSymbol"),
+  researchPrice: document.querySelector("#researchPrice"),
+  researchChange: document.querySelector("#researchChange"),
+  researchChart: document.querySelector("#researchChart"),
+  researchUpdated: document.querySelector("#researchUpdated"),
+  researchPer: document.querySelector("#researchPer"),
+  researchPbr: document.querySelector("#researchPbr"),
+  researchEps: document.querySelector("#researchEps"),
+  researchGrowth: document.querySelector("#researchGrowth"),
+  researchPeg: document.querySelector("#researchPeg"),
+  researchMarketCap: document.querySelector("#researchMarketCap"),
+  researchNotes: document.querySelector("#researchNotes"),
 };
 
 const LYNCH_CATEGORIES = {
@@ -423,6 +437,7 @@ async function renderSelectedQuote() {
   const averagePrice = getHoldingAveragePrice(quote.symbol);
   renderAveragePriceBadge(averagePrice, quote.currency);
   drawChart(quote.points, quote.currency);
+  renderResearchDetail(quote, financials);
   renderWatchlist([...quoteCache.values()].map((entry) => entry.data));
   await renderPortfolio();
 }
@@ -437,8 +452,7 @@ function renderAveragePriceBadge(averagePrice, currency) {
   el.averagePriceBadge.textContent = "평균단가 -";
 }
 
-function drawChart(points, currency) {
-  const canvas = el.chart;
+function drawChart(points, currency, canvas = el.chart) {
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
@@ -511,6 +525,78 @@ function drawChart(points, currency) {
     ctx.textAlign = "right";
     ctx.fillText(label, width - 10, y);
   }
+}
+
+function buildResearchNotes(quote, financials) {
+  const growthPercent = Number.isFinite(financials.earningsGrowth) ? financials.earningsGrowth * 100 : null;
+  const peg = financials.per && growthPercent && growthPercent > 0 ? financials.per / growthPercent : null;
+  const category = classifyLynchCategory({
+    holding: { symbol: quote.symbol, name: quote.name },
+    quote,
+    financials,
+    growthPercent,
+  });
+  const opinion = getPegOpinion(peg, growthPercent);
+  const notes = [
+    {
+      label: "피터린치 분류",
+      value: LYNCH_CATEGORIES[category]?.title || "-",
+      detail: LYNCH_CATEGORIES[category]?.summary || "분류에 필요한 데이터가 부족합니다.",
+    },
+    {
+      label: "PEG 해석",
+      value: Number.isFinite(peg) ? peg.toFixed(2) : "-",
+      detail: opinion.label,
+    },
+    {
+      label: "가격 흐름",
+      value: `${quote.changePercent.toFixed(2)}%`,
+      detail: quote.changePercent >= 0 ? "오늘 기준 상승 흐름입니다." : "오늘 기준 하락 흐름입니다.",
+    },
+  ];
+
+  if (!Number.isFinite(growthPercent)) {
+    notes.push({
+      label: "데이터 주의",
+      value: "성장률 없음",
+      detail: "EPS 성장률 데이터가 제공되지 않아 PEG 판단을 보수적으로 봐야 합니다.",
+    });
+  }
+
+  return notes;
+}
+
+function renderResearchDetail(quote, financials) {
+  if (!el.researchChart) return;
+  const growthPercent = Number.isFinite(financials.earningsGrowth) ? financials.earningsGrowth * 100 : null;
+  const peg = financials.per && growthPercent && growthPercent > 0 ? financials.per / growthPercent : null;
+
+  el.researchType.textContent = quote.type;
+  el.researchName.textContent = quote.name;
+  el.researchSymbol.textContent = quote.symbol;
+  el.researchPrice.textContent = formatMoney(quote.price, quote.currency);
+  el.researchChange.textContent = `${quote.changePercent.toFixed(2)}%`;
+  el.researchChange.className = changeClass(quote.changePercent);
+  el.researchUpdated.textContent = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  el.researchPer.textContent = formatNumber(financials.per);
+  el.researchPbr.textContent = formatNumber(financials.pbr);
+  el.researchEps.textContent = formatNumber(financials.eps);
+  el.researchGrowth.textContent = formatPercent(growthPercent);
+  el.researchPeg.textContent = Number.isFinite(peg) ? peg.toFixed(2) : "-";
+  el.researchMarketCap.textContent = financials.marketCap ? formatCompact(financials.marketCap, financials.currency) : "-";
+
+  drawChart(quote.points, quote.currency, el.researchChart);
+  el.researchNotes.innerHTML = buildResearchNotes(quote, financials)
+    .map(
+      (note) => `
+        <article>
+          <span>${escapeHtml(note.label)}</span>
+          <strong>${escapeHtml(note.value)}</strong>
+          <p>${escapeHtml(note.detail)}</p>
+        </article>
+      `,
+    )
+    .join("");
 }
 
 async function renderPortfolio() {
