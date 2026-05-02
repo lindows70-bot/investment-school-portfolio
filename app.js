@@ -58,6 +58,7 @@ const el = {
   dashboardAllocationChart: document.querySelector("#dashboardAllocationChart"),
   dashboardPerformanceChart: document.querySelector("#dashboardPerformanceChart"),
   dashboardLeaders: document.querySelector("#dashboardLeaders"),
+  dashboardMiniCharts: document.querySelector("#dashboardMiniCharts"),
   dashboardMix: document.querySelector("#dashboardMix"),
   dashboardBrief: document.querySelector("#dashboardBrief"),
   portfolioRows: document.querySelector("#portfolioRows"),
@@ -316,6 +317,11 @@ function isEtfHolding(rowOrHolding) {
     name.includes("s&p") ||
     name.includes("200")
   );
+}
+
+function isBuffettEligible(rowOrHolding) {
+  const symbol = normalizeSymbol(rowOrHolding?.symbol || rowOrHolding?.holding?.symbol || "");
+  return !isEtfHolding(rowOrHolding) && !symbol.endsWith("-USD");
 }
 
 function guessCurrency(symbol) {
@@ -832,6 +838,7 @@ function renderPortfolioDashboard(quoteResults = []) {
   el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
 
   renderDashboardLeaders(rows);
+  renderDashboardMiniCharts(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
   drawPerformanceChart(rows);
@@ -860,6 +867,48 @@ function renderDashboardLeaders(rows) {
       `,
     )
     .join("") || `<p class="empty-note">현재 플러스 수익 종목이 없습니다.</p>`;
+}
+
+function renderDashboardMiniCharts(rows) {
+  if (!el.dashboardMiniCharts) return;
+  if (!rows.length) {
+    el.dashboardMiniCharts.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 미니차트가 표시됩니다.</p>`;
+    return;
+  }
+  el.dashboardMiniCharts.innerHTML = rows
+    .slice()
+    .sort((a, b) => b.weight - a.weight)
+    .map((row, index) => {
+      const points = (row.quote.points || []).slice(-36);
+      const values = points.map((point) => point.price).filter(Number.isFinite);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const range = max - min || 1;
+      const path = values
+        .map((value, pointIndex) => {
+          const x = values.length <= 1 ? 0 : (pointIndex / (values.length - 1)) * 100;
+          const y = 30 - ((value - min) / range) * 28;
+          return `${pointIndex ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ");
+      return `
+        <article class="mini-chart-row">
+          <div class="mini-chart-rank">${index + 1}</div>
+          <div class="mini-chart-name">
+            <strong>${escapeHtml(displayHoldingName(row))}</strong>
+            <span>${escapeHtml(row.symbol)} · 비중 ${row.weight.toFixed(1)}%</span>
+          </div>
+          <svg viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+            <path d="${path}" class="${row.quote.changePercent >= 0 ? "mini-up" : "mini-down"}"></path>
+          </svg>
+          <div class="mini-chart-return">
+            <strong class="${row.metrics.profitKrw >= 0 ? "up-text" : "down-text"}">${row.metrics.profitPercent.toFixed(1)}%</strong>
+            <span>${formatMoney(row.metrics.value, row.metrics.currency)}</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderDashboardMix(rows) {
@@ -1322,14 +1371,26 @@ async function renderBuffettAnalysis() {
   }
 
   el.buffettUpdated.textContent = "분석 중";
-  const rows = (await buildLynchRows()).map((row) => {
-    const scored = { ...row };
-    scored.score = scoreBuffett(scored);
-    scored.moat = getBuffettMoat(scored);
-    scored.priceDiscipline = getBuffettPriceDiscipline(scored);
-    scored.sellCheck = getBuffettSellCheck(scored);
-    return scored;
-  });
+  const rows = (await buildLynchRows())
+    .filter(isBuffettEligible)
+    .map((row) => {
+      const scored = { ...row };
+      scored.score = scoreBuffett(scored);
+      scored.moat = getBuffettMoat(scored);
+      scored.priceDiscipline = getBuffettPriceDiscipline(scored);
+      scored.sellCheck = getBuffettSellCheck(scored);
+      return scored;
+    });
+  if (!rows.length) {
+    el.buffettCount.textContent = "0개";
+    el.buffettAvgScore.textContent = "-";
+    el.buffettQualityCount.textContent = "0개";
+    el.buffettSellCount.textContent = "0개";
+    el.buffettUpdated.textContent = "개별 주식 종목을 추가하세요";
+    el.buffettRows.innerHTML = `<tr><td colspan="8">워렌버핏 분석은 ETF와 암호화폐를 제외한 개별 주식만 표시합니다.</td></tr>`;
+    drawBuffettChart([]);
+    return;
+  }
   const avgScore = rows.reduce((sum, row) => sum + row.score, 0) / rows.length;
 
   el.buffettCount.textContent = `${rows.length}개`;
@@ -1361,7 +1422,7 @@ async function renderBuffettAnalysis() {
 function drawBuffettChart(rows) {
   const canvas = el.buffettChart;
   if (!canvas) return;
-  rows = rows.filter((row) => !isEtfHolding(row));
+  rows = rows.filter(isBuffettEligible);
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;

@@ -532,6 +532,7 @@ select:focus {
 }
 
 .dashboard-list,
+.mini-chart-list,
 .dashboard-brief,
 .dashboard-mix {
   display: grid;
@@ -539,12 +540,84 @@ select:focus {
 }
 
 .dashboard-row,
+.mini-chart-row,
 .dashboard-brief article,
 .mix-row {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-2);
   padding: 12px;
+}
+
+.dashboard-mini-panel {
+  overflow: hidden;
+}
+
+.mini-chart-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mini-chart-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1.1fr) minmax(88px, 0.8fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.mini-chart-rank {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mini-chart-name {
+  min-width: 0;
+}
+
+.mini-chart-name strong,
+.mini-chart-name span,
+.mini-chart-return strong,
+.mini-chart-return span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-chart-name span,
+.mini-chart-return span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mini-chart-row svg {
+  width: 100%;
+  height: 34px;
+}
+
+.mini-chart-row path {
+  fill: none;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.mini-chart-row .mini-up {
+  stroke: var(--good);
+}
+
+.mini-chart-row .mini-down {
+  stroke: var(--danger);
+}
+
+.mini-chart-return {
+  min-width: 84px;
+  text-align: right;
 }
 
 .dashboard-row {
@@ -1081,6 +1154,7 @@ th {
 
   .holding-form,
   .guide-grid,
+  .mini-chart-list,
   .research-notes,
   .lynch-card-grid,
   .lynch-category-grid {
@@ -1105,6 +1179,7 @@ th {
   .symbol-search,
   .holding-form,
   .guide-grid,
+  .mini-chart-list,
   .metrics-grid,
   .research-metrics,
   .research-notes {
