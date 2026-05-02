@@ -155,6 +155,7 @@ async function fetchNaverFinancials(symbol) {
         {
           defaultKeyStatistics: {
             trailingEps: { raw: latestEps },
+            forwardEps: { raw: null },
             bookValue: { raw: bps },
             priceToBook: { raw: Number(realtime.pbr) || pbr },
           },
@@ -241,6 +242,7 @@ async function handleApi(req, res, url) {
               {
                 defaultKeyStatistics: {
                   trailingEps: { raw: quote.epsTrailingTwelveMonths ?? null },
+                  forwardEps: { raw: quote.epsForward ?? null },
                   bookValue: { raw: quote.bookValue ?? null },
                   priceToBook: { raw: quote.priceToBook ?? null },
                 },
@@ -249,6 +251,7 @@ async function handleApi(req, res, url) {
                 },
                 financialData: {
                   earningsGrowth: { raw: quote.earningsQuarterlyGrowth ?? null },
+                  forwardEps: { raw: quote.epsForward ?? null },
                 },
                 price: {
                   regularMarketPrice: { raw: quote.regularMarketPrice ?? null },

@@ -66,6 +66,7 @@ const el = {
   researchPbr: document.querySelector("#researchPbr"),
   researchEps: document.querySelector("#researchEps"),
   researchGrowth: document.querySelector("#researchGrowth"),
+  researchForwardEps: document.querySelector("#researchForwardEps"),
   researchPeg: document.querySelector("#researchPeg"),
   researchMarketCap: document.querySelector("#researchMarketCap"),
   researchNotes: document.querySelector("#researchNotes"),
@@ -253,6 +254,7 @@ async function fetchFinancials(symbol) {
     pbr,
     per: raw(summary.trailingPE),
     earningsGrowth: raw(financial.earningsGrowth),
+    forwardEps: raw(financial.forwardEps) ?? raw(stats.forwardEps),
     marketCap: raw(price.marketCap),
     currency: price.currency || guessCurrency(symbol),
   };
@@ -357,6 +359,7 @@ async function getFinancials(symbol) {
       pbr: null,
       per: null,
       earningsGrowth: null,
+      forwardEps: null,
       marketCap: null,
       currency: guessCurrency(normalized),
     };
@@ -549,9 +552,19 @@ function buildResearchNotes(quote, financials) {
       detail: opinion.label,
     },
     {
-      label: "가격 흐름",
+      label: "선택 기간 가격흐름",
       value: `${quote.changePercent.toFixed(2)}%`,
-      detail: quote.changePercent >= 0 ? "오늘 기준 상승 흐름입니다." : "오늘 기준 하락 흐름입니다.",
+      detail:
+        selectedRange.range === "1d"
+          ? "당일 기준가 대비 현재가 변화율입니다."
+          : `현재 선택한 ${selectedRange.range.toUpperCase()} 차트 구간의 기준가 대비 변화율입니다.`,
+    },
+    {
+      label: "Forward EPS",
+      value: Number.isFinite(financials.forwardEps) ? formatNumber(financials.forwardEps) : "-",
+      detail: Number.isFinite(financials.forwardEps)
+        ? "애널리스트 예상 이익 기준 EPS입니다."
+        : "제공처에서 예상 EPS를 제공하지 않는 종목입니다.",
     },
   ];
 
@@ -582,6 +595,7 @@ function renderResearchDetail(quote, financials) {
   el.researchPbr.textContent = formatNumber(financials.pbr);
   el.researchEps.textContent = formatNumber(financials.eps);
   el.researchGrowth.textContent = formatPercent(growthPercent);
+  el.researchForwardEps.textContent = formatNumber(financials.forwardEps);
   el.researchPeg.textContent = Number.isFinite(peg) ? peg.toFixed(2) : "-";
   el.researchMarketCap.textContent = financials.marketCap ? formatCompact(financials.marketCap, financials.currency) : "-";
 
