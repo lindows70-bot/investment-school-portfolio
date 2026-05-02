@@ -501,8 +501,12 @@ select:focus {
 
 .dashboard-card strong em {
   display: block;
+  max-width: 100%;
+  overflow: hidden;
   font-style: normal;
   line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #dashboardBest {
@@ -549,7 +553,18 @@ select:focus {
   gap: 14px;
 }
 
+.dashboard-row > div {
+  min-width: 0;
+}
+
+.dashboard-row strong,
+.dashboard-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .dashboard-row > div:last-child {
+  flex: 0 0 auto;
   text-align: right;
 }
 
@@ -980,6 +995,10 @@ th {
 
 .compact-heading {
   margin-bottom: 14px;
+}
+
+.research-range-tabs {
+  margin: 0 0 14px;
 }
 
 .compact-heading h2 {

@@ -15,6 +15,7 @@ let fxRate = { usdKrw: 1350, updatedAt: null, source: "fallback" };
 
 let selectedSymbol = "AAPL";
 let selectedRange = { range: "1d", interval: "5m" };
+let researchRange = { range: "1d", interval: "5m" };
 let holdings = loadHoldings();
 let watchlistItems = loadWatchlist();
 
@@ -83,6 +84,7 @@ const el = {
   researchPrice: document.querySelector("#researchPrice"),
   researchChange: document.querySelector("#researchChange"),
   researchChart: document.querySelector("#researchChart"),
+  researchRangeTabs: document.querySelector("#researchRangeTabs"),
   researchUpdated: document.querySelector("#researchUpdated"),
   researchPer: document.querySelector("#researchPer"),
   researchPbr: document.querySelector("#researchPbr"),
@@ -303,6 +305,19 @@ function classifySymbol(symbol) {
   return "US Stock";
 }
 
+function isEtfHolding(rowOrHolding) {
+  const symbol = normalizeSymbol(rowOrHolding?.symbol || rowOrHolding?.holding?.symbol || "");
+  const name = String(rowOrHolding?.name || rowOrHolding?.holding?.name || rowOrHolding?.quote?.name || "").toLowerCase();
+  return (
+    symbol.includes("ETF") ||
+    name.includes("etf") ||
+    name.includes("tiger") ||
+    name.includes("kodex") ||
+    name.includes("s&p") ||
+    name.includes("200")
+  );
+}
+
 function guessCurrency(symbol) {
   return symbol.endsWith(".KS") || symbol.endsWith(".KQ") ? "KRW" : "USD";
 }
@@ -520,7 +535,8 @@ async function renderSelectedQuote() {
   const averagePrice = getHoldingAveragePrice(quote.symbol);
   renderAveragePriceBadge(averagePrice, quote.currency);
   drawChart(quote.points, quote.currency);
-  renderResearchDetail(quote, financials);
+  const researchQuote = await getQuote(selectedSymbol, researchRange.range, researchRange.interval);
+  renderResearchDetail(researchQuote, financials);
   renderWatchlist([...quoteCache.values()].map((entry) => entry.data));
   await renderPortfolio();
 }
@@ -830,8 +846,8 @@ function renderDashboardLeaders(rows) {
   }
   el.dashboardLeaders.innerHTML = rows
     .slice()
+    .filter((row) => row.metrics.profitKrw > 0)
     .sort((a, b) => b.metrics.profitKrw - a.metrics.profitKrw)
-    .slice(0, 6)
     .map(
       (row) => `
         <article class="dashboard-row">
@@ -843,7 +859,7 @@ function renderDashboardLeaders(rows) {
         </article>
       `,
     )
-    .join("");
+    .join("") || `<p class="empty-note">현재 플러스 수익 종목이 없습니다.</p>`;
 }
 
 function renderDashboardMix(rows) {
@@ -988,7 +1004,7 @@ function classifyLynchCategory({ holding, quote, financials, growthPercent }) {
   const pbr = financials.pbr;
 
   if (symbol.endsWith("-USD") || name.includes("bitcoin") || name.includes("xrp")) return "asset";
-  if (symbol.includes("ETF") || name.includes("tiger") || name.includes("kodex") || name.includes("s&p")) return "slow";
+  if (isEtfHolding({ symbol, name })) return "slow";
   if (name.includes("semiconductor") || name.includes("하이닉스") || name.includes("samsung electronics")) return "cyclical";
   if (Number.isFinite(growthPercent) && growthPercent < 0) return "turnaround";
   if (Number.isFinite(pbr) && pbr > 0 && pbr < 0.8) return "asset";
@@ -1242,6 +1258,7 @@ function renderLynchHealth(rows) {
 function drawPegChart(rows) {
   const canvas = el.pegChart;
   if (!canvas) return;
+  rows = rows.filter((row) => !isEtfHolding(row) && Number.isFinite(row.peg));
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
@@ -1255,7 +1272,7 @@ function drawPegChart(rows) {
   }
 
   const pad = 54;
-  const chartRows = rows.slice(0, 8);
+  const chartRows = rows;
   const maxPeg = Math.max(2.5, ...chartRows.map((row) => (Number.isFinite(row.peg) ? Math.min(row.peg, 5) : 0)));
   const barGap = 14;
   const barHeight = Math.max(18, (height - pad * 2 - barGap * (chartRows.length - 1)) / chartRows.length);
@@ -1344,6 +1361,7 @@ async function renderBuffettAnalysis() {
 function drawBuffettChart(rows) {
   const canvas = el.buffettChart;
   if (!canvas) return;
+  rows = rows.filter((row) => !isEtfHolding(row));
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
@@ -1356,7 +1374,7 @@ function drawBuffettChart(rows) {
   }
 
   const pad = 54;
-  const chartRows = rows.slice(0, 8);
+  const chartRows = rows;
   const gap = 14;
   const barHeight = Math.max(18, (height - pad * 2 - gap * (chartRows.length - 1)) / chartRows.length);
   chartRows.forEach((row, index) => {
@@ -1403,12 +1421,23 @@ function bindEvents() {
     if (symbol) selectSymbol(symbol);
   });
 
-  document.querySelectorAll(".range-tab").forEach((button) => {
+  document.querySelectorAll(".chart-toolbar .range-tab").forEach((button) => {
     button.addEventListener("click", async () => {
-      document.querySelectorAll(".range-tab").forEach((tab) => tab.classList.remove("active"));
+      document.querySelectorAll(".chart-toolbar .range-tab").forEach((tab) => tab.classList.remove("active"));
       button.classList.add("active");
       selectedRange = { range: button.dataset.range, interval: button.dataset.interval };
       await renderSelectedQuote();
+    });
+  });
+
+  el.researchRangeTabs?.querySelectorAll(".range-tab").forEach((button) => {
+    button.addEventListener("click", async () => {
+      el.researchRangeTabs.querySelectorAll(".range-tab").forEach((tab) => tab.classList.remove("active"));
+      button.classList.add("active");
+      researchRange = { range: button.dataset.range, interval: button.dataset.interval };
+      const quote = await getQuote(selectedSymbol, researchRange.range, researchRange.interval);
+      const financials = await getFinancials(selectedSymbol);
+      renderResearchDetail(quote, financials);
     });
   });
 
