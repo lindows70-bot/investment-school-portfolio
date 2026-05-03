@@ -568,48 +568,71 @@ select:focus {
 .heatmap-tiles {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
   min-height: 96px;
 }
 
 .heatmap-tile {
-  flex: var(--tile-size) 1 120px;
-  min-width: 112px;
+  flex: var(--tile-size) 1 86px;
+  min-width: 70px;
   max-width: 100%;
   height: var(--tile-height);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
   border: 1px solid rgba(242, 247, 239, 0.14);
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.16)),
     var(--heat-color);
   color: #fff;
-  padding: 12px;
+  padding: 10px;
   text-align: center;
   overflow: hidden;
 }
 
-.heatmap-tile span,
+.heatmap-symbol,
 .heatmap-tile small {
   color: rgba(255, 255, 255, 0.74);
-  font-size: 11px;
+  font-size: clamp(9px, 1.2vw, 11px);
   font-weight: 800;
+}
+
+.heatmap-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.heatmap-symbol i {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(8, 12, 10, 0.42);
+  color: #fff;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .heatmap-tile strong {
   display: block;
-  font-size: clamp(15px, 2vw, 24px);
+  font-size: clamp(12px, 1.35vw, 18px);
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
 
 .heatmap-tile em {
   font-style: normal;
-  font-size: clamp(18px, 2.5vw, 30px);
+  font-size: clamp(15px, 1.7vw, 24px);
   font-weight: 900;
+  line-height: 1.05;
 }
 
 .heatmap-tile em.up {
@@ -618,6 +641,47 @@ select:focus {
 
 .heatmap-tile em.down {
   color: #fff1f1;
+}
+
+.heatmap-tile.medium strong {
+  font-size: clamp(11px, 1.15vw, 15px);
+}
+
+.heatmap-tile.small {
+  padding: 8px;
+}
+
+.heatmap-tile.small strong,
+.heatmap-tile.small small,
+.heatmap-tile.tiny strong,
+.heatmap-tile.tiny small {
+  display: none;
+}
+
+.heatmap-tile.small .heatmap-symbol,
+.heatmap-tile.tiny .heatmap-symbol {
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+}
+
+.heatmap-tile.small em,
+.heatmap-tile.tiny em {
+  font-size: clamp(13px, 1.2vw, 17px);
+}
+
+.heatmap-tile.tiny {
+  padding: 6px;
+  border-radius: 7px;
+}
+
+.heatmap-tile.tiny .heatmap-symbol {
+  font-size: 9px;
+}
+
+.heatmap-tile.tiny .heatmap-symbol i {
+  width: 20px;
+  height: 20px;
 }
 
 .dashboard-list,

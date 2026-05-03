@@ -1382,14 +1382,17 @@ function renderDashboardHeatmap(rows) {
             ${group.rows
               .map((row) => {
                 const weight = Math.max(row.weight, 2);
-                const height = Math.max(84, Math.min(178, 72 + Math.sqrt(weight) * 24));
+                const tileClass = weight >= 18 ? "large" : weight >= 8 ? "medium" : weight >= 4 ? "small" : "tiny";
+                const tileSize = Math.max(tileClass === "tiny" ? 70 : 92, weight * 20);
+                const height = Math.max(tileClass === "tiny" ? 64 : 76, Math.min(170, 64 + Math.sqrt(weight) * 22));
+                const initial = (displayHoldingName(row) || row.symbol).slice(0, 1).toUpperCase();
                 return `
                   <article
-                    class="heatmap-tile"
-                    style="--tile-size:${Math.max(120, weight * 18)}; --tile-height:${height}px; --heat-color:${heatmapColor(row.metrics.profitPercent)}"
+                    class="heatmap-tile ${tileClass}"
+                    style="--tile-size:${tileSize}; --tile-height:${height}px; --heat-color:${heatmapColor(row.metrics.profitPercent)}"
                     title="${escapeHtml(displayHoldingName(row))} ${row.metrics.profitPercent.toFixed(2)}%"
                   >
-                    <span>${escapeHtml(row.symbol)}</span>
+                    <span class="heatmap-symbol"><i>${escapeHtml(initial)}</i>${escapeHtml(row.symbol)}</span>
                     <strong>${escapeHtml(displayHoldingName(row))}</strong>
                     <em class="${row.metrics.profitPercent >= 0 ? "up" : "down"}">${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
                     <small>비중 ${row.weight.toFixed(1)}% · ${formatMoney(row.metrics.value, row.metrics.currency)}</small>
