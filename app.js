@@ -263,7 +263,10 @@ function displayHoldingName(row) {
 }
 
 function normalizeSymbol(symbol) {
-  return symbol.trim().toUpperCase();
+  const normalized = symbol.trim().toUpperCase();
+  if (["BTC", "XRP", "ETH", "SOL", "DOGE"].includes(normalized)) return `${normalized}-USD`;
+  if (normalized.startsWith("KRW-")) return `${normalized.replace("KRW-", "")}-USD`;
+  return normalized;
 }
 
 function getHoldingAveragePrice(symbol) {
@@ -452,16 +455,18 @@ function findHoldingIndex(symbol) {
 function getHoldingCostBasis(symbol, fallbackCurrency = "KRW") {
   const index = findHoldingIndex(symbol);
   const holding = index >= 0 ? holdings[index] : null;
+  const isCrypto = classifySymbol(symbol) === "Crypto";
   return {
     index,
     holding,
     qty: Number(holding?.qty || 0),
     avgPrice: Number(holding?.avgPrice || 0),
-    currency: holding?.currency || fallbackCurrency,
+    currency: isCrypto ? "KRW" : holding?.currency || fallbackCurrency,
   };
 }
 
 function getHoldingCurrency(holding, quote) {
+  if (classifySymbol(holding.symbol) === "Crypto") return "KRW";
   return holding.currency || quote?.currency || guessCurrency(holding.symbol);
 }
 
@@ -1219,7 +1224,7 @@ function renderPortfolioDashboard(quoteResults = []) {
   el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
 
   renderDashboardLeadersAll(rows);
-  renderDashboardHeatmapGrouped(rows);
+  renderDashboardHeatmapPacked(rows);
   renderDashboardMiniChartsByAsset(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
@@ -1540,6 +1545,108 @@ function renderDashboardHeatmapGrouped(rows) {
             </section>
           `,
         )
+        .join("")}
+    </div>
+  `;
+}
+
+function treemapSplit(items, rect) {
+  if (!items.length) return [];
+  if (items.length === 1) return [{ ...items[0], rect }];
+  const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
+  let running = 0;
+  let splitIndex = 1;
+  for (let index = 0; index < items.length - 1; index += 1) {
+    const next = running + items[index].value;
+    if (Math.abs(total / 2 - next) <= Math.abs(total / 2 - running)) {
+      running = next;
+      splitIndex = index + 1;
+    } else {
+      break;
+    }
+  }
+  const first = items.slice(0, splitIndex);
+  const second = items.slice(splitIndex);
+  const firstTotal = first.reduce((sum, item) => sum + item.value, 0);
+  const ratio = firstTotal / total;
+  if (rect.w >= rect.h) {
+    const firstRect = { x: rect.x, y: rect.y, w: rect.w * ratio, h: rect.h };
+    const secondRect = { x: rect.x + firstRect.w, y: rect.y, w: rect.w - firstRect.w, h: rect.h };
+    return treemapSplit(first, firstRect).concat(treemapSplit(second, secondRect));
+  }
+  const firstRect = { x: rect.x, y: rect.y, w: rect.w, h: rect.h * ratio };
+  const secondRect = { x: rect.x, y: rect.y + firstRect.h, w: rect.w, h: rect.h - firstRect.h };
+  return treemapSplit(first, firstRect).concat(treemapSplit(second, secondRect));
+}
+
+function heatmapAreaClass(rect) {
+  const area = rect.w * rect.h;
+  if (area >= 900) return "large";
+  if (area >= 420) return "medium";
+  if (area >= 170) return "small";
+  return "tiny";
+}
+
+function rectStyle(rect, inset = 0.18) {
+  const x = rect.x + inset;
+  const y = rect.y + inset;
+  const w = Math.max(0, rect.w - inset * 2);
+  const h = Math.max(0, rect.h - inset * 2);
+  return `left:${x.toFixed(3)}%; top:${y.toFixed(3)}%; width:${w.toFixed(3)}%; height:${h.toFixed(3)}%;`;
+}
+
+function renderDashboardHeatmapPacked(rows) {
+  if (!el.dashboardHeatmap) return;
+  if (!rows.length) {
+    el.dashboardHeatmap.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 히트맵이 표시됩니다.</p>`;
+    return;
+  }
+  const groupItems = ["US Stock", "KR Stock", "Crypto"]
+    .map((type) => {
+      const groupRows = rows.filter((row) => row.assetType === type).sort((a, b) => b.metrics.valueKrw - a.metrics.valueKrw);
+      return {
+        type,
+        value: groupRows.reduce((sum, row) => sum + Math.max(row.metrics.valueKrw, 0), 0),
+        rows: groupRows,
+      };
+    })
+    .filter((group) => group.rows.length && group.value > 0)
+    .sort((a, b) => b.value - a.value);
+  const groupLayout = treemapSplit(groupItems, { x: 0, y: 0, w: 100, h: 100 });
+  el.dashboardHeatmap.innerHTML = `
+    <div class="heatmap-board packed-heatmap">
+      ${groupLayout
+        .map((group) => {
+          const header = Math.min(4.8, Math.max(3.2, group.rect.h * 0.16));
+          const childRect = { x: 0, y: header, w: 100, h: Math.max(1, 100 - header) };
+          const childItems = group.rows.map((row) => ({ row, value: Math.max(row.metrics.valueKrw, 0.0001) }));
+          const childLayout = treemapSplit(childItems, childRect);
+          const groupWeight = group.rows.reduce((sum, row) => sum + row.weight, 0);
+          return `
+            <section class="packed-sector" style="${rectStyle(group.rect, 0.12)}">
+              <header>${assetLabel(group.type)} <span>${groupWeight.toFixed(1)}%</span></header>
+              ${childLayout
+                .map((item) => {
+                  const row = item.row;
+                  const fullName = displayHoldingName(row) || row.symbol;
+                  const compact = heatmapAreaClass(item.rect);
+                  const name = fullName.length > 13 ? `${fullName.slice(0, 12)}…` : fullName;
+                  return `
+                    <article
+                      class="packed-tile ${compact}"
+                      style="${rectStyle(item.rect, 0.24)} --heat-color:${heatmapColor(row.metrics.profitPercent)}"
+                      title="${escapeHtml(fullName)} · 평가비중 ${row.weight.toFixed(2)}% · 수익률 ${row.metrics.profitPercent.toFixed(2)}%"
+                    >
+                      <strong>${escapeHtml(name)}</strong>
+                      <em>${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
+                      <small>${row.weight.toFixed(1)}%</small>
+                    </article>
+                  `;
+                })
+                .join("")}
+            </section>
+          `;
+        })
         .join("")}
     </div>
   `;

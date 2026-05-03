@@ -556,6 +556,112 @@ select:focus {
   padding: 6px;
 }
 
+.packed-heatmap {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: clamp(390px, 58vw, 720px);
+  padding: 0;
+  overflow: hidden;
+}
+
+.packed-sector,
+.packed-tile {
+  position: absolute;
+  overflow: hidden;
+}
+
+.packed-sector {
+  border: 1px solid rgba(242, 247, 239, 0.24);
+  background: #111713;
+}
+
+.packed-sector header {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 2;
+  height: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  background: rgba(8, 12, 10, 0.72);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-weight: 900;
+  padding: 4px 6px;
+}
+
+.packed-tile {
+  display: grid;
+  place-content: center;
+  gap: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.14)),
+    var(--heat-color);
+  color: #fff;
+  padding: 6px;
+  text-align: center;
+}
+
+.packed-tile strong,
+.packed-tile em,
+.packed-tile small {
+  display: block;
+  line-height: 1.08;
+}
+
+.packed-tile strong {
+  font-size: clamp(11px, 1.7vw, 28px);
+  overflow-wrap: anywhere;
+}
+
+.packed-tile em {
+  font-size: clamp(10px, 1.4vw, 24px);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.packed-tile small {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.packed-tile.medium strong {
+  font-size: clamp(10px, 1.2vw, 17px);
+}
+
+.packed-tile.medium em {
+  font-size: clamp(10px, 1vw, 15px);
+}
+
+.packed-tile.small {
+  padding: 3px;
+}
+
+.packed-tile.small strong {
+  font-size: 10px;
+}
+
+.packed-tile.small em {
+  font-size: 10px;
+}
+
+.packed-tile.small small,
+.packed-tile.tiny strong,
+.packed-tile.tiny small {
+  display: none;
+}
+
+.packed-tile.tiny {
+  padding: 1px;
+}
+
+.packed-tile.tiny em {
+  font-size: 9px;
+}
+
 .heatmap-sector {
   flex: var(--sector-weight) 1 240px;
   min-width: 220px;
