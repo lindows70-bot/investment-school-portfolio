@@ -549,14 +549,14 @@ select:focus {
 .heatmap-split,
 .heatmap-split-block {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .heatmap-split-block {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #0b100d;
-  padding: 10px;
+  padding: 8px;
 }
 
 .heatmap-split-block > header {
@@ -575,7 +575,7 @@ select:focus {
 .asset-class-map {
   display: flex;
   gap: 5px;
-  min-height: 116px;
+  min-height: 86px;
 }
 
 .asset-class-map article {
@@ -606,7 +606,7 @@ select:focus {
 }
 
 .asset-class-map em {
-  font-size: clamp(22px, 4vw, 48px);
+  font-size: clamp(20px, 3vw, 34px);
   font-style: normal;
   font-weight: 900;
 }
@@ -617,11 +617,11 @@ select:focus {
 }
 
 .stock-heatmap {
-  height: clamp(320px, 45vw, 560px);
+  height: clamp(230px, 32vw, 390px);
 }
 
 .crypto-heatmap {
-  height: clamp(180px, 26vw, 340px);
+  height: clamp(120px, 18vw, 220px);
 }
 
 .crypto-tile strong {
@@ -1067,6 +1067,12 @@ select:focus {
 .mini-chart-group {
   display: grid;
   gap: 8px;
+  align-content: start;
+}
+
+.mini-chart-stack {
+  display: grid;
+  gap: 12px;
   align-content: start;
 }
 

@@ -1225,7 +1225,7 @@ function renderPortfolioDashboard(quoteResults = []) {
 
   renderDashboardLeadersAll(rows);
   renderDashboardHeatmapSplit(rows);
-  renderDashboardMiniChartsByAsset(rows);
+  renderDashboardMiniChartsBalanced(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
   drawPerformanceChart(rows);
@@ -1853,6 +1853,66 @@ function renderDashboardMiniChartsByAsset(rows) {
       `,
     )
     .join("");
+}
+
+function renderDashboardMiniChartsBalanced(rows) {
+  if (!el.dashboardMiniCharts) return;
+  if (!rows.length) {
+    el.dashboardMiniCharts.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 자산군별 미니차트가 표시됩니다.</p>`;
+    return;
+  }
+  const renderRow = (row, index) => {
+    const points = (row.quote.points || []).slice(-36);
+    const values = points.map((point) => point.price).filter(Number.isFinite);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const path = values
+      .map((value, pointIndex) => {
+        const x = values.length <= 1 ? 0 : (pointIndex / (values.length - 1)) * 100;
+        const y = 30 - ((value - min) / range) * 28;
+        return `${pointIndex ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    return `
+      <article class="mini-chart-row">
+        <div class="mini-chart-rank">${index + 1}</div>
+        <div class="mini-chart-name">
+          <strong>${escapeHtml(displayHoldingName(row))}</strong>
+          <span>${escapeHtml(row.symbol)} · 비중 ${row.weight.toFixed(1)}%</span>
+        </div>
+        <svg viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+          <path d="${path}" class="${row.quote.changePercent >= 0 ? "mini-up" : "mini-down"}"></path>
+        </svg>
+        <div class="mini-chart-period">${rangeLabel("1d")}</div>
+        <div class="mini-chart-return">
+          <strong class="${row.metrics.profitKrw >= 0 ? "up-text" : "down-text"}">${row.metrics.profitPercent.toFixed(1)}%</strong>
+          <span>${formatMoney(row.metrics.value, row.metrics.currency)}</span>
+        </div>
+      </article>
+    `;
+  };
+  const usRows = rows.filter((row) => row.assetType === "US Stock").sort((a, b) => b.weight - a.weight);
+  const krRows = rows.filter((row) => row.assetType === "KR Stock").sort((a, b) => b.weight - a.weight);
+  const cryptoRows = rows.filter((row) => row.assetType === "Crypto").sort((a, b) => b.weight - a.weight);
+  const renderGroup = (type, groupRows) =>
+    groupRows.length
+      ? `
+        <section class="mini-chart-group">
+          <header><strong>${assetLabel(type)}</strong><span>${groupRows.length}종목</span></header>
+          ${groupRows.map((row, index) => renderRow(row, index)).join("")}
+        </section>
+      `
+      : "";
+  el.dashboardMiniCharts.innerHTML = `
+    <div class="mini-chart-stack">
+      ${renderGroup("US Stock", usRows)}
+      ${renderGroup("Crypto", cryptoRows)}
+    </div>
+    <div class="mini-chart-stack">
+      ${renderGroup("KR Stock", krRows)}
+    </div>
+  `;
 }
 
 function renderDashboardBriefByAsset(summary) {
