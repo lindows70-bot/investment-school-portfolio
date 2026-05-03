@@ -280,6 +280,7 @@ async function fetchYahooChart(symbol, range = "1d", interval = "5m") {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`시세 요청 실패: ${response.status}`);
   const data = await response.json();
+  const isUpbit = data.source === "upbit";
   const result = data.chart?.result?.[0];
   if (!result) throw new Error(data.chart?.error?.description || "시세 데이터가 없습니다.");
 
@@ -304,7 +305,7 @@ async function fetchYahooChart(symbol, range = "1d", interval = "5m") {
 
   return {
     symbol,
-    name: meta.longName || meta.shortName || symbol,
+    name: isUpbit ? `${symbol.replace("-USD", "")} 원화` : meta.longName || meta.shortName || symbol,
     type: classifySymbol(symbol),
     currency: meta.currency || guessCurrency(symbol),
     price: current,
@@ -312,7 +313,7 @@ async function fetchYahooChart(symbol, range = "1d", interval = "5m") {
     changePercent,
     marketTime: meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now(),
     points: closes,
-    source: "live",
+    source: isUpbit ? "upbit" : "live",
   };
 }
 
@@ -1218,7 +1219,7 @@ function renderPortfolioDashboard(quoteResults = []) {
   el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
 
   renderDashboardLeadersAll(rows);
-  renderDashboardHeatmapTreemap(rows);
+  renderDashboardHeatmapGrouped(rows);
   renderDashboardMiniChartsByAsset(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
@@ -1486,6 +1487,59 @@ function renderDashboardHeatmapTreemap(rows) {
             </article>
           `;
         })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderDashboardHeatmapGrouped(rows) {
+  if (!el.dashboardHeatmap) return;
+  if (!rows.length) {
+    el.dashboardHeatmap.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 히트맵이 표시됩니다.</p>`;
+    return;
+  }
+  const groups = ["US Stock", "KR Stock", "Crypto"]
+    .map((type) => {
+      const groupRows = rows.filter((row) => row.assetType === type).sort((a, b) => b.metrics.valueKrw - a.metrics.valueKrw);
+      return {
+        type,
+        rows: groupRows,
+        weight: groupRows.reduce((sum, row) => sum + row.weight, 0),
+      };
+    })
+    .filter((group) => group.rows.length);
+  el.dashboardHeatmap.innerHTML = `
+    <div class="heatmap-board">
+      ${groups
+        .map(
+          (group) => `
+            <section class="heatmap-sector" style="--sector-weight:${Math.max(group.weight, 8)}">
+              <header><strong>${assetLabel(group.type)}</strong><span>${group.weight.toFixed(1)}%</span></header>
+              <div class="heatmap-tiles treemap-tiles">
+                ${group.rows
+                  .map((row) => {
+                    const weight = Math.max(row.weight, 0);
+                    const size = heatmapSize(weight);
+                    const compact = size.bucket <= 2 ? "tiny" : size.bucket <= 4 ? "small" : size.bucket <= 6 ? "medium" : "large";
+                    const fullName = displayHoldingName(row) || row.symbol;
+                    const name = fullName.length > 13 ? `${fullName.slice(0, 12)}…` : fullName;
+                    return `
+                      <article
+                        class="heatmap-tile treemap-tile ${compact} size-${size.bucket}"
+                        style="--col-span:${size.cols}; --row-span:${size.rows}; --heat-color:${heatmapColor(row.metrics.profitPercent)}"
+                        title="${escapeHtml(fullName)} · 평가비중 ${row.weight.toFixed(2)}% · 수익률 ${row.metrics.profitPercent.toFixed(2)}%"
+                      >
+                        <strong>${escapeHtml(name)}</strong>
+                        <em class="${row.metrics.profitPercent >= 0 ? "up" : "down"}">${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
+                        <small>${row.weight.toFixed(1)}% · ${formatMoney(row.metrics.value, row.metrics.currency)}</small>
+                      </article>
+                    `;
+                  })
+                  .join("")}
+              </div>
+            </section>
+          `,
+        )
         .join("")}
     </div>
   `;

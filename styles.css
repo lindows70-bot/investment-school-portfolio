@@ -546,6 +546,37 @@ select:focus {
   gap: 14px;
 }
 
+.heatmap-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0b100d;
+  padding: 6px;
+}
+
+.heatmap-sector {
+  flex: var(--sector-weight) 1 240px;
+  min-width: 220px;
+  border: 1px solid rgba(242, 247, 239, 0.14);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.heatmap-sector header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(8, 12, 10, 0.68);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  padding: 5px 7px;
+}
+
 .heatmap-group {
   display: grid;
   gap: 8px;
@@ -579,6 +610,7 @@ select:focus {
   grid-auto-flow: dense;
   gap: 4px;
   min-height: 0;
+  padding: 4px;
 }
 
 .heatmap-tile {

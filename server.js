@@ -142,6 +142,80 @@ function isKoreanSymbol(symbol) {
   return symbol.endsWith(".KS") || symbol.endsWith(".KQ");
 }
 
+function isCryptoSymbol(symbol) {
+  return symbol.endsWith("-USD");
+}
+
+function upbitMarket(symbol) {
+  return `KRW-${symbol.replace("-USD", "")}`;
+}
+
+function upbitCandleEndpoint(range, interval) {
+  if (interval === "1wk") return { path: "weeks", count: range === "1y" ? 60 : 24 };
+  if (interval === "1d") return { path: "days", count: range === "1y" ? 365 : range === "6mo" ? 180 : 60 };
+  const unit = Number.parseInt(interval, 10) || 5;
+  return { path: `minutes/${unit}`, count: range === "5d" ? 200 : 120 };
+}
+
+async function fetchUpbitChart(symbol, range = "1d", interval = "5m") {
+  const market = upbitMarket(symbol);
+  const { path: candlePath, count } = upbitCandleEndpoint(range, interval);
+  const [tickerPayload, candlePayload] = await Promise.all([
+    fetchJson(`https://api.upbit.com/v1/ticker?markets=${encodeURIComponent(market)}`, {
+      headers: { Accept: "application/json" },
+    }),
+    fetchJson(`https://api.upbit.com/v1/candles/${candlePath}?market=${encodeURIComponent(market)}&count=${count}`, {
+      headers: { Accept: "application/json" },
+    }),
+  ]);
+  const ticker = Array.isArray(tickerPayload) ? tickerPayload[0] : {};
+  const candles = (Array.isArray(candlePayload) ? candlePayload : [])
+    .slice()
+    .reverse()
+    .map((item) => ({
+      time: new Date(item.candle_date_time_kst || item.candle_date_time_utc).getTime(),
+      open: Number(item.opening_price),
+      high: Number(item.high_price),
+      low: Number(item.low_price),
+      close: Number(item.trade_price),
+      volume: Number(item.candle_acc_trade_volume),
+    }))
+    .filter((item) => Number.isFinite(item.close));
+  const current = Number(ticker.trade_price ?? candles.at(-1)?.close ?? 0);
+  const previous = Number(ticker.prev_closing_price ?? candles[0]?.close ?? current);
+
+  return {
+    chart: {
+      result: [
+        {
+          meta: {
+            currency: "KRW",
+            symbol,
+            shortName: market,
+            longName: `${symbol.replace("-USD", "")} 원화`,
+            regularMarketPrice: current,
+            chartPreviousClose: previous,
+            regularMarketTime: ticker.timestamp ? Math.floor(Number(ticker.timestamp) / 1000) : Math.floor(Date.now() / 1000),
+          },
+          timestamp: candles.map((item) => Math.floor(item.time / 1000)),
+          indicators: {
+            quote: [
+              {
+                open: candles.map((item) => item.open),
+                high: candles.map((item) => item.high),
+                low: candles.map((item) => item.low),
+                close: candles.map((item) => item.close),
+                volume: candles.map((item) => item.volume),
+              },
+            ],
+          },
+        },
+      ],
+    },
+    source: "upbit",
+  };
+}
+
 function parseNaverMetric(html, label) {
   return parseNaverMetricValues(html, label).at(-1) ?? null;
 }
@@ -473,6 +547,10 @@ async function handleApi(req, res, url) {
     if (url.pathname === "/api/chart") {
       const range = url.searchParams.get("range") || "1d";
       const interval = url.searchParams.get("interval") || "5m";
+      if (isCryptoSymbol(symbol)) {
+        sendJson(res, 200, await fetchUpbitChart(symbol, range, interval));
+        return;
+      }
       const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
         symbol,
       )}?range=${encodeURIComponent(range)}&interval=${encodeURIComponent(
