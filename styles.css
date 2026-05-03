@@ -563,6 +563,26 @@ select:focus {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.mini-chart-group {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.mini-chart-group header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+  padding: 2px 4px;
+}
+
+.mini-chart-group header strong {
+  color: var(--text);
+}
+
 .mini-chart-row {
   display: grid;
   grid-template-columns: 28px minmax(0, 1.1fr) minmax(88px, 0.8fr) 34px auto;

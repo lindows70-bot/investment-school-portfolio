@@ -1081,6 +1081,26 @@ function sumWeight(rows, predicate) {
   return rows.filter(predicate).reduce((sum, row) => sum + row.weight, 0);
 }
 
+function summarizeRows(rows) {
+  const cost = rows.reduce((sum, row) => sum + row.metrics.costKrw, 0);
+  const value = rows.reduce((sum, row) => sum + row.metrics.valueKrw, 0);
+  const profit = value - cost;
+  return {
+    cost,
+    value,
+    profit,
+    returnPercent: cost ? (profit / cost) * 100 : 0,
+  };
+}
+
+function assetLabel(type) {
+  return {
+    "US Stock": "미국주식",
+    "KR Stock": "한국주식",
+    Crypto: "암호화폐",
+  }[type] || type;
+}
+
 function setText(node, value) {
   if (node) node.textContent = value;
 }
@@ -1120,12 +1140,12 @@ function renderPortfolioDashboard(quoteResults = []) {
   el.dashboardTotalReturn?.classList.toggle("down-text", summary.totalReturn < 0);
   el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
 
-  renderDashboardLeaders(rows);
-  renderDashboardMiniCharts(rows);
+  renderDashboardLeadersAll(rows);
+  renderDashboardMiniChartsByAsset(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
   drawPerformanceChart(rows);
-  renderDashboardBrief(summary);
+  renderDashboardBriefByAsset(summary);
 }
 
 function renderDashboardLeaders(rows) {
@@ -1136,7 +1156,6 @@ function renderDashboardLeaders(rows) {
   }
   el.dashboardLeaders.innerHTML = rows
     .slice()
-    .filter((row) => row.metrics.profitKrw > 0)
     .sort((a, b) => b.metrics.profitKrw - a.metrics.profitKrw)
     .map(
       (row) => `
@@ -1225,6 +1244,115 @@ function renderDashboardBrief(summary) {
       : "단일 종목 집중도는 과하지 않습니다.";
   el.dashboardBrief.innerHTML = `
     <article><strong>${cashTone}</strong><span>총 수익률 ${summary.totalReturn.toFixed(2)}%, 평가손익 ${formatMoney(summary.totalProfitKrw, "KRW")}</span></article>
+    <article><strong>집중도</strong><span>${concentration}</span></article>
+    <article><strong>환율</strong><span>USD/KRW ${formatNumber(fxRate.usdKrw, 2)} 기준으로 원화 평가금액을 계산했습니다.</span></article>
+  `;
+}
+
+function renderDashboardLeadersAll(rows) {
+  if (!el.dashboardLeaders) return;
+  if (!rows.length) {
+    el.dashboardLeaders.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 전체 손익 순위가 표시됩니다.</p>`;
+    return;
+  }
+  el.dashboardLeaders.innerHTML = rows
+    .slice()
+    .sort((a, b) => b.metrics.profitKrw - a.metrics.profitKrw)
+    .map(
+      (row) => `
+        <article class="dashboard-row">
+          <div><strong>${escapeHtml(displayHoldingName(row))}</strong><span>${escapeHtml(row.symbol)}</span></div>
+          <div>
+            <strong class="${row.metrics.profitKrw >= 0 ? "up-text" : "down-text"}">${formatMoney(row.metrics.profit, row.metrics.currency)}</strong>
+            <span>${row.metrics.profitPercent.toFixed(2)}% · 비중 ${row.weight.toFixed(1)}%</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderDashboardMiniChartsByAsset(rows) {
+  if (!el.dashboardMiniCharts) return;
+  if (!rows.length) {
+    el.dashboardMiniCharts.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 자산군별 미니차트가 표시됩니다.</p>`;
+    return;
+  }
+  const renderRow = (row, index) => {
+    const points = (row.quote.points || []).slice(-36);
+    const values = points.map((point) => point.price).filter(Number.isFinite);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const path = values
+      .map((value, pointIndex) => {
+        const x = values.length <= 1 ? 0 : (pointIndex / (values.length - 1)) * 100;
+        const y = 30 - ((value - min) / range) * 28;
+        return `${pointIndex ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    return `
+      <article class="mini-chart-row">
+        <div class="mini-chart-rank">${index + 1}</div>
+        <div class="mini-chart-name">
+          <strong>${escapeHtml(displayHoldingName(row))}</strong>
+          <span>${escapeHtml(row.symbol)} · 비중 ${row.weight.toFixed(1)}%</span>
+        </div>
+        <svg viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+          <path d="${path}" class="${row.quote.changePercent >= 0 ? "mini-up" : "mini-down"}"></path>
+        </svg>
+        <div class="mini-chart-period">${rangeLabel("1d")}</div>
+        <div class="mini-chart-return">
+          <strong class="${row.metrics.profitKrw >= 0 ? "up-text" : "down-text"}">${row.metrics.profitPercent.toFixed(1)}%</strong>
+          <span>${formatMoney(row.metrics.value, row.metrics.currency)}</span>
+        </div>
+      </article>
+    `;
+  };
+  const groups = ["US Stock", "KR Stock", "Crypto"]
+    .map((type) => ({
+      type,
+      rows: rows.filter((row) => row.assetType === type).sort((a, b) => b.weight - a.weight),
+    }))
+    .filter((group) => group.rows.length);
+  el.dashboardMiniCharts.innerHTML = groups
+    .map(
+      (group) => `
+        <section class="mini-chart-group">
+          <header><strong>${assetLabel(group.type)}</strong><span>${group.rows.length}종목</span></header>
+          ${group.rows.map((row, index) => renderRow(row, index)).join("")}
+        </section>
+      `,
+    )
+    .join("");
+}
+
+function renderDashboardBriefByAsset(summary) {
+  if (!el.dashboardBrief) return;
+  const largest = summary.rows.slice().sort((a, b) => b.weight - a.weight)[0];
+  const cashTone = summary.totalProfitKrw >= 0 ? "수익 구간" : "손실 구간";
+  const concentration =
+    largest && largest.weight >= 35
+      ? `${displayHoldingName(largest)} 비중이 ${largest.weight.toFixed(1)}%로 큽니다.`
+      : "단일 종목 집중도는 과하지 않습니다.";
+  const assetSummaries = ["US Stock", "KR Stock", "Crypto"]
+    .map((type) => {
+      const groupRows = summary.rows.filter((row) => row.assetType === type);
+      return { type, groupRows, ...summarizeRows(groupRows) };
+    })
+    .filter((group) => group.groupRows.length);
+  el.dashboardBrief.innerHTML = `
+    <article><strong>${cashTone}</strong><span>전체 수익률 ${summary.totalReturn.toFixed(2)}%, 평가손익 ${formatMoney(summary.totalProfitKrw, "KRW")}</span></article>
+    ${assetSummaries
+      .map(
+        (group) => `
+          <article class="brief-asset">
+            <strong>${assetLabel(group.type)}</strong>
+            <span class="${group.profit >= 0 ? "up-text" : "down-text"}">${group.returnPercent.toFixed(2)}%, ${formatMoney(group.profit, "KRW")}</span>
+          </article>
+        `,
+      )
+      .join("")}
     <article><strong>집중도</strong><span>${concentration}</span></article>
     <article><strong>환율</strong><span>USD/KRW ${formatNumber(fxRate.usdKrw, 2)} 기준으로 원화 평가금액을 계산했습니다.</span></article>
   `;
