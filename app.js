@@ -63,6 +63,7 @@ const el = {
   dashboardAllocationChart: document.querySelector("#dashboardAllocationChart"),
   dashboardPerformanceChart: document.querySelector("#dashboardPerformanceChart"),
   dashboardLeaders: document.querySelector("#dashboardLeaders"),
+  dashboardHeatmap: document.querySelector("#dashboardHeatmap"),
   dashboardMiniCharts: document.querySelector("#dashboardMiniCharts"),
   dashboardMix: document.querySelector("#dashboardMix"),
   dashboardBrief: document.querySelector("#dashboardBrief"),
@@ -1217,6 +1218,7 @@ function renderPortfolioDashboard(quoteResults = []) {
   el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
 
   renderDashboardLeadersAll(rows);
+  renderDashboardHeatmap(rows);
   renderDashboardMiniChartsByAsset(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
@@ -1343,6 +1345,60 @@ function renderDashboardLeadersAll(rows) {
             <span>${row.metrics.profitPercent.toFixed(2)}% · 비중 ${row.weight.toFixed(1)}%</span>
           </div>
         </article>
+      `,
+    )
+    .join("");
+}
+
+function heatmapColor(percent) {
+  if (!Number.isFinite(percent) || Math.abs(percent) < 0.2) return "rgba(75, 82, 78, 0.92)";
+  const strength = Math.min(Math.abs(percent) / 28, 1);
+  if (percent > 0) {
+    const green = Math.round(92 + strength * 68);
+    return `rgb(${Math.round(24 + strength * 6)}, ${green}, ${Math.round(78 + strength * 12)})`;
+  }
+  const red = Math.round(122 + strength * 76);
+  return `rgb(${red}, ${Math.round(34 + strength * 12)}, ${Math.round(48 + strength * 8)})`;
+}
+
+function renderDashboardHeatmap(rows) {
+  if (!el.dashboardHeatmap) return;
+  if (!rows.length) {
+    el.dashboardHeatmap.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 히트맵이 표시됩니다.</p>`;
+    return;
+  }
+  const groups = ["US Stock", "KR Stock", "Crypto"]
+    .map((type) => ({
+      type,
+      rows: rows.filter((row) => row.assetType === type).sort((a, b) => b.metrics.valueKrw - a.metrics.valueKrw),
+    }))
+    .filter((group) => group.rows.length);
+  el.dashboardHeatmap.innerHTML = groups
+    .map(
+      (group) => `
+        <section class="heatmap-group">
+          <header><strong>${assetLabel(group.type)}</strong><span>${group.rows.length}종목</span></header>
+          <div class="heatmap-tiles">
+            ${group.rows
+              .map((row) => {
+                const weight = Math.max(row.weight, 2);
+                const height = Math.max(84, Math.min(178, 72 + Math.sqrt(weight) * 24));
+                return `
+                  <article
+                    class="heatmap-tile"
+                    style="--tile-size:${Math.max(120, weight * 18)}; --tile-height:${height}px; --heat-color:${heatmapColor(row.metrics.profitPercent)}"
+                    title="${escapeHtml(displayHoldingName(row))} ${row.metrics.profitPercent.toFixed(2)}%"
+                  >
+                    <span>${escapeHtml(row.symbol)}</span>
+                    <strong>${escapeHtml(displayHoldingName(row))}</strong>
+                    <em class="${row.metrics.profitPercent >= 0 ? "up" : "down"}">${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
+                    <small>비중 ${row.weight.toFixed(1)}% · ${formatMoney(row.metrics.value, row.metrics.currency)}</small>
+                  </article>
+                `;
+              })
+              .join("")}
+          </div>
+        </section>
       `,
     )
     .join("");

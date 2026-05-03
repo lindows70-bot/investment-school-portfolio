@@ -1,10 +1,10 @@
-const CACHE_NAME = "portfolio-pulse-v25";
+const CACHE_NAME = "portfolio-pulse-v26";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
-  "/styles.css?v=25",
-  "/app.js?v=25",
-  "/manifest.webmanifest?v=25",
+  "/styles.css?v=26",
+  "/app.js?v=26",
+  "/manifest.webmanifest?v=26",
   "/icon.svg",
 ];
 

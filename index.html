@@ -9,10 +9,10 @@
       content="미국주식, 한국주식, 암호화폐 시세와 포트폴리오 수익률을 관리하는 주식학교용 웹앱"
     />
     <title>투자학교 포트폴리오 (Get Rich Slowly)</title>
-    <link rel="manifest" href="./manifest.webmanifest?v=25" />
+    <link rel="manifest" href="./manifest.webmanifest?v=26" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icon.svg" />
-    <link rel="stylesheet" href="./styles.css?v=25" />
+    <link rel="stylesheet" href="./styles.css?v=26" />
   </head>
   <body>
     <div class="app-shell">
@@ -152,6 +152,14 @@
               <article class="dashboard-card"><span>KRW 입력 비중</span><strong id="dashboardKrwWeight">0.0%</strong></article>
               <article class="dashboard-card"><span>암호화폐 비중</span><strong id="dashboardCryptoWeight">0.0%</strong></article>
               <article class="dashboard-card"><span>최고/최저 수익률</span><strong><em id="dashboardBest">-</em><em id="dashboardWorst">-</em></strong></article>
+            </section>
+
+            <section class="panel dashboard-panel heatmap-panel">
+              <div class="section-title">
+                <h2>포트폴리오 히트맵</h2>
+                <span class="muted">타일 크기: 평가금액 비중 · 색상: 수익률</span>
+              </div>
+              <div id="dashboardHeatmap" class="portfolio-heatmap"></div>
             </section>
 
             <section class="dashboard-grid">
@@ -628,6 +636,6 @@
       </main>
     </div>
 
-    <script src="./app.js?v=25"></script>
+    <script src="./app.js?v=26"></script>
   </body>
 </html>
