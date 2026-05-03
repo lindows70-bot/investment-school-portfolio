@@ -889,6 +889,80 @@ function buildResearchNotes(quote, financials) {
   return notes;
 }
 
+function drawSparklineChart(points, currency, canvas) {
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+
+  const closes = points.map((point) => ({ ...point, price: Number(point.close ?? point.price) })).filter((point) => Number.isFinite(point.price));
+  if (!closes.length) {
+    ctx.fillStyle = "#9ba89d";
+    ctx.fillText("차트 데이터가 없습니다.", 24, 40);
+    return;
+  }
+
+  const prices = closes.map((point) => point.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const padX = 78;
+  const padY = 30;
+  const range = max - min || 1;
+  const xFor = (index) => padX + (index / Math.max(closes.length - 1, 1)) * (width - padX * 2);
+  const yFor = (price) => height - padY - ((price - min) / range) * (height - padY * 2);
+  const isUp = closes.at(-1).price >= closes[0].price;
+
+  ctx.strokeStyle = "rgba(238, 244, 238, 0.08)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i += 1) {
+    const y = padY + ((height - padY * 2) / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(padX, y);
+    ctx.lineTo(width - padX, y);
+    ctx.stroke();
+  }
+
+  const gradient = ctx.createLinearGradient(0, padY, 0, height - padY);
+  gradient.addColorStop(0, isUp ? "rgba(117, 211, 123, 0.28)" : "rgba(255, 107, 107, 0.24)");
+  gradient.addColorStop(1, "rgba(24, 29, 26, 0)");
+  ctx.beginPath();
+  closes.forEach((point, index) => {
+    const x = xFor(index);
+    const y = yFor(point.price);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(width - padX, height - padY);
+  ctx.lineTo(padX, height - padY);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.beginPath();
+  closes.forEach((point, index) => {
+    const x = xFor(index);
+    const y = yFor(point.price);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = isUp ? "#75d37b" : "#ff6b6b";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = "#9ba89d";
+  ctx.font = "12px system-ui";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < 5; i += 1) {
+    const value = max - (range / 4) * i;
+    const y = padY + ((height - padY * 2) / 4) * i;
+    const label = formatMoney(value, currency);
+    ctx.textAlign = "left";
+    ctx.fillText(label, 10, y);
+    ctx.textAlign = "right";
+    ctx.fillText(label, width - 10, y);
+  }
+}
+
 function renderResearchDetail(quote, financials) {
   if (!el.researchChart) return;
   const growthPercent = getGrowthPercent(financials);
@@ -910,7 +984,7 @@ function renderResearchDetail(quote, financials) {
   el.researchMarketCap.textContent = financials.marketCap ? formatCompact(financials.marketCap, financials.currency) : "-";
   setText(el.researchChartPeriod, `${rangeLabel(researchRange.range)} 차트`);
 
-  drawChart(quote.points, quote.currency, el.researchChart);
+  drawSparklineChart(quote.points, quote.currency, el.researchChart);
   el.researchNotes.innerHTML = buildResearchNotes(quote, financials)
     .map(
       (note) => `
