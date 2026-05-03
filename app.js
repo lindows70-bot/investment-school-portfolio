@@ -1748,6 +1748,43 @@ function renderCryptoCards(rows) {
   `;
 }
 
+function renderCryptoTreemap(rows) {
+  const cryptoRows = rows.filter((row) => row.assetType === "Crypto").sort((a, b) => b.metrics.valueKrw - a.metrics.valueKrw);
+  if (!cryptoRows.length) return "";
+  const total = cryptoRows.reduce((sum, row) => sum + row.metrics.valueKrw, 0) || 1;
+  const layout = treemapSplit(
+    cryptoRows.map((row) => ({ row, value: Math.max(row.metrics.valueKrw, 0.0001) })),
+    { x: 0, y: 0, w: 100, h: 100 },
+  );
+  return `
+    <section class="heatmap-split-block">
+      <header><strong>암호화폐 히트맵</strong><span>업비트 원화 시세 · 암호화폐 내부 비중</span></header>
+      <div class="heatmap-board packed-heatmap crypto-heatmap">
+        ${layout
+          .map((item) => {
+            const row = item.row;
+            const fullName = displayHoldingName(row) || row.symbol;
+            const compact = heatmapAreaClass(item.rect);
+            const cryptoWeight = (row.metrics.valueKrw / total) * 100;
+            const name = fullName.length > 13 ? `${fullName.slice(0, 12)}…` : fullName;
+            return `
+              <article
+                class="packed-tile crypto-tile ${compact}"
+                style="${rectStyle(item.rect, 0.18)} --heat-color:${heatmapColor(row.metrics.profitPercent)}"
+                title="${escapeHtml(fullName)} · 암호화폐 내 비중 ${cryptoWeight.toFixed(2)}% · 전체 비중 ${row.weight.toFixed(2)}% · 수익률 ${row.metrics.profitPercent.toFixed(2)}%"
+              >
+                <strong>${escapeHtml(name)}</strong>
+                <em>${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
+                <small>암호화폐 내 ${cryptoWeight.toFixed(1)}% · 전체 ${row.weight.toFixed(1)}%</small>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderDashboardHeatmapSplit(rows) {
   if (!el.dashboardHeatmap) return;
   if (!rows.length) {
@@ -1758,7 +1795,7 @@ function renderDashboardHeatmapSplit(rows) {
     <div class="heatmap-split">
       ${renderAssetClassMap(rows)}
       ${renderStockTreemap(rows)}
-      ${renderCryptoCards(rows)}
+      ${renderCryptoTreemap(rows)}
     </div>
   `;
 }

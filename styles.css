@@ -620,6 +620,32 @@ select:focus {
   height: clamp(320px, 45vw, 560px);
 }
 
+.crypto-heatmap {
+  height: clamp(180px, 26vw, 340px);
+}
+
+.crypto-tile strong {
+  font-size: clamp(18px, 3vw, 38px);
+}
+
+.crypto-tile em {
+  font-size: clamp(16px, 2.2vw, 28px);
+}
+
+.crypto-tile.medium strong {
+  font-size: clamp(14px, 2vw, 24px);
+}
+
+.crypto-tile.small strong {
+  display: block;
+  font-size: 12px;
+}
+
+.crypto-tile.small small,
+.crypto-tile.tiny small {
+  display: none;
+}
+
 .crypto-position-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
