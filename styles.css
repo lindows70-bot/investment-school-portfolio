@@ -546,6 +546,122 @@ select:focus {
   gap: 14px;
 }
 
+.heatmap-split,
+.heatmap-split-block {
+  display: grid;
+  gap: 10px;
+}
+
+.heatmap-split-block {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0b100d;
+  padding: 10px;
+}
+
+.heatmap-split-block > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.heatmap-split-block > header strong {
+  color: var(--text);
+}
+
+.asset-class-map {
+  display: flex;
+  gap: 5px;
+  min-height: 116px;
+}
+
+.asset-class-map article {
+  flex: var(--asset-weight) 1 80px;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.16)),
+    var(--heat-color);
+  color: #fff;
+  min-width: 0;
+  padding: 10px;
+  text-align: center;
+}
+
+.asset-class-map strong,
+.asset-class-map em,
+.asset-class-map span {
+  display: block;
+  line-height: 1.1;
+}
+
+.asset-class-map strong {
+  font-size: clamp(14px, 2vw, 24px);
+}
+
+.asset-class-map em {
+  font-size: clamp(22px, 4vw, 48px);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.asset-class-map span {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.stock-heatmap {
+  height: clamp(320px, 45vw, 560px);
+}
+
+.crypto-position-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.crypto-position-grid article {
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.16)),
+    var(--heat-color);
+  color: #fff;
+  padding: 14px;
+}
+
+.crypto-position-grid span,
+.crypto-position-grid strong,
+.crypto-position-grid em,
+.crypto-position-grid small {
+  display: block;
+}
+
+.crypto-position-grid span,
+.crypto-position-grid small {
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.crypto-position-grid strong {
+  margin-top: 8px;
+  font-size: clamp(20px, 3vw, 34px);
+}
+
+.crypto-position-grid em {
+  margin: 6px 0;
+  font-size: 22px;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .heatmap-board {
   display: flex;
   flex-wrap: wrap;

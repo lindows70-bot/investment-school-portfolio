@@ -1224,7 +1224,7 @@ function renderPortfolioDashboard(quoteResults = []) {
   el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
 
   renderDashboardLeadersAll(rows);
-  renderDashboardHeatmapPacked(rows);
+  renderDashboardHeatmapSplit(rows);
   renderDashboardMiniChartsByAsset(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
@@ -1648,6 +1648,117 @@ function renderDashboardHeatmapPacked(rows) {
           `;
         })
         .join("")}
+    </div>
+  `;
+}
+
+function renderAssetClassMap(rows) {
+  const groups = ["US Stock", "KR Stock", "Crypto"]
+    .map((type) => {
+      const groupRows = rows.filter((row) => row.assetType === type);
+      const value = groupRows.reduce((sum, row) => sum + row.metrics.valueKrw, 0);
+      const profit = groupRows.reduce((sum, row) => sum + row.metrics.profitKrw, 0);
+      const cost = groupRows.reduce((sum, row) => sum + row.metrics.costKrw, 0);
+      return { type, value, profit, returnPercent: cost ? (profit / cost) * 100 : 0, rows: groupRows };
+    })
+    .filter((group) => group.rows.length && group.value > 0)
+    .sort((a, b) => b.value - a.value);
+  const total = groups.reduce((sum, group) => sum + group.value, 0) || 1;
+  return `
+    <section class="heatmap-split-block">
+      <header><strong>자산군 요약</strong><span>전체 평가금액 기준</span></header>
+      <div class="asset-class-map">
+        ${groups
+          .map((group) => {
+            const weight = (group.value / total) * 100;
+            return `
+              <article style="--asset-weight:${Math.max(weight, 8)}; --heat-color:${heatmapColor(group.returnPercent)}">
+                <strong>${assetLabel(group.type)}</strong>
+                <em>${weight.toFixed(1)}%</em>
+                <span>${group.returnPercent >= 0 ? "+" : ""}${group.returnPercent.toFixed(2)}%</span>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderStockTreemap(rows) {
+  const stockRows = rows.filter((row) => row.assetType !== "Crypto" && row.metrics.valueKrw > 0);
+  if (!stockRows.length) return "";
+  const items = stockRows
+    .slice()
+    .sort((a, b) => b.metrics.valueKrw - a.metrics.valueKrw)
+    .map((row) => ({ row, value: row.metrics.valueKrw }));
+  const layout = treemapSplit(items, { x: 0, y: 0, w: 100, h: 100 });
+  const total = stockRows.reduce((sum, row) => sum + row.metrics.valueKrw, 0) || 1;
+  return `
+    <section class="heatmap-split-block">
+      <header><strong>주식 종목 히트맵</strong><span>미국주식 + 한국주식 내부 비중</span></header>
+      <div class="heatmap-board packed-heatmap stock-heatmap">
+        ${layout
+          .map((item) => {
+            const row = item.row;
+            const fullName = displayHoldingName(row) || row.symbol;
+            const compact = heatmapAreaClass(item.rect);
+            const name = fullName.length > 13 ? `${fullName.slice(0, 12)}…` : fullName;
+            const stockWeight = (row.metrics.valueKrw / total) * 100;
+            return `
+              <article
+                class="packed-tile ${compact}"
+                style="${rectStyle(item.rect, 0.18)} --heat-color:${heatmapColor(row.metrics.profitPercent)}"
+                title="${escapeHtml(fullName)} · 주식 내 비중 ${stockWeight.toFixed(2)}% · 전체 비중 ${row.weight.toFixed(2)}% · 수익률 ${row.metrics.profitPercent.toFixed(2)}%"
+              >
+                <strong>${escapeHtml(name)}</strong>
+                <em>${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
+                <small>${stockWeight.toFixed(1)}%</small>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderCryptoCards(rows) {
+  const cryptoRows = rows.filter((row) => row.assetType === "Crypto").sort((a, b) => b.metrics.valueKrw - a.metrics.valueKrw);
+  if (!cryptoRows.length) return "";
+  return `
+    <section class="heatmap-split-block">
+      <header><strong>암호화폐 포지션</strong><span>업비트 원화 시세 기준</span></header>
+      <div class="crypto-position-grid">
+        ${cryptoRows
+          .map((row) => {
+            const fullName = displayHoldingName(row) || row.symbol;
+            return `
+              <article style="--heat-color:${heatmapColor(row.metrics.profitPercent)}">
+                <span>${escapeHtml(fullName)}</span>
+                <strong>${formatMoney(row.metrics.value, row.metrics.currency)}</strong>
+                <em>${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
+                <small>전체 비중 ${row.weight.toFixed(1)}% · 손익 ${formatMoney(row.metrics.profit, row.metrics.currency)}</small>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderDashboardHeatmapSplit(rows) {
+  if (!el.dashboardHeatmap) return;
+  if (!rows.length) {
+    el.dashboardHeatmap.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 히트맵이 표시됩니다.</p>`;
+    return;
+  }
+  el.dashboardHeatmap.innerHTML = `
+    <div class="heatmap-split">
+      ${renderAssetClassMap(rows)}
+      ${renderStockTreemap(rows)}
+      ${renderCryptoCards(rows)}
     </div>
   `;
 }
