@@ -1874,13 +1874,28 @@ init();
 
 if ("serviceWorker" in navigator) {
   let refreshing = false;
+  async function resetServiceWorkerCache() {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("reset") && !params.has("fresh")) return false;
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
+    const cleanUrl = `${window.location.origin}${window.location.pathname}?v=${Date.now()}`;
+    window.location.replace(cleanUrl);
+    return true;
+  }
+
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (refreshing) return;
     refreshing = true;
     window.location.reload();
   });
 
-  window.addEventListener("load", () => {
+  window.addEventListener("load", async () => {
+    if (await resetServiceWorkerCache()) return;
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => registration.update())

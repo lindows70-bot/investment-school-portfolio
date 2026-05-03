@@ -515,11 +515,13 @@ http
         return;
       }
       const ext = path.extname(filePath);
-      const cacheControl =
-        ext === ".html" ? "no-cache" : ext === ".js" || ext === ".css" ? "no-cache" : "public, max-age=86400";
+      const noStoreAssets = new Set([".html", ".js", ".css", ".webmanifest"]);
+      const cacheControl = noStoreAssets.has(ext) ? "no-store, max-age=0, must-revalidate" : "public, max-age=86400";
+      const extraHeaders = path.basename(filePath) === "sw.js" ? { "Service-Worker-Allowed": "/" } : {};
       res.writeHead(200, {
         "Content-Type": types[ext] || "text/plain; charset=utf-8",
         "Cache-Control": cacheControl,
+        ...extraHeaders,
       });
       res.end(content);
     });
