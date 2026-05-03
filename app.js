@@ -140,15 +140,16 @@ const LYNCH_CATEGORIES = {
 
 function loadHoldings() {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) {
-    return [
-      { symbol: "AAPL", name: "Apple Inc.", qty: 3, avgPrice: 180, currency: "USD" },
-      { symbol: "005930.KS", name: "삼성전자", qty: 10, avgPrice: 72000, currency: "KRW" },
-      { symbol: "BTC-USD", name: "Bitcoin", qty: 0.02, avgPrice: 90000000, currency: "KRW" },
-    ];
-  }
+  if (!saved) return [];
   try {
-    return JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    const legacySample = parsed.length === 3 && parsed.some((item) => item.symbol === "AAPL") && parsed.some((item) => item.symbol === "005930.KS") && parsed.some((item) => item.symbol === "BTC-USD");
+    if (legacySample) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      return [];
+    }
+    return parsed;
   } catch {
     return [];
   }
