@@ -1218,7 +1218,7 @@ function renderPortfolioDashboard(quoteResults = []) {
   el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
 
   renderDashboardLeadersAll(rows);
-  renderDashboardHeatmapUnified(rows);
+  renderDashboardHeatmapTreemap(rows);
   renderDashboardMiniChartsByAsset(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
@@ -1433,6 +1433,56 @@ function renderDashboardHeatmapUnified(rows) {
               <strong>${escapeHtml(displayHoldingName(row))}</strong>
               <em class="${row.metrics.profitPercent >= 0 ? "up" : "down"}">${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
               <small>평가비중 ${row.weight.toFixed(1)}% · ${formatMoney(row.metrics.value, row.metrics.currency)}</small>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function shortHeatmapName(row) {
+  const name = displayHoldingName(row) || row.symbol;
+  return name.length > 13 ? `${name.slice(0, 12)}…` : name;
+}
+
+function heatmapSize(weight) {
+  if (weight >= 25) return { bucket: 10, cols: 6, rows: 6 };
+  if (weight >= 18) return { bucket: 9, cols: 5, rows: 5 };
+  if (weight >= 13) return { bucket: 8, cols: 5, rows: 4 };
+  if (weight >= 9) return { bucket: 7, cols: 4, rows: 4 };
+  if (weight >= 6) return { bucket: 6, cols: 4, rows: 3 };
+  if (weight >= 4) return { bucket: 5, cols: 3, rows: 3 };
+  if (weight >= 2.5) return { bucket: 4, cols: 3, rows: 2 };
+  if (weight >= 1.5) return { bucket: 3, cols: 2, rows: 2 };
+  if (weight >= 0.8) return { bucket: 2, cols: 2, rows: 1 };
+  return { bucket: 1, cols: 1, rows: 1 };
+}
+
+function renderDashboardHeatmapTreemap(rows) {
+  if (!el.dashboardHeatmap) return;
+  if (!rows.length) {
+    el.dashboardHeatmap.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 히트맵이 표시됩니다.</p>`;
+    return;
+  }
+  const sortedRows = rows.slice().sort((a, b) => b.metrics.valueKrw - a.metrics.valueKrw);
+  el.dashboardHeatmap.innerHTML = `
+    <div class="heatmap-tiles treemap-tiles">
+      ${sortedRows
+        .map((row) => {
+          const weight = Math.max(row.weight, 0);
+          const size = heatmapSize(weight);
+          const compact = size.bucket <= 2 ? "tiny" : size.bucket <= 4 ? "small" : size.bucket <= 6 ? "medium" : "large";
+          const name = shortHeatmapName(row);
+          return `
+            <article
+              class="heatmap-tile treemap-tile ${compact} size-${size.bucket}"
+              style="--col-span:${size.cols}; --row-span:${size.rows}; --heat-color:${heatmapColor(row.metrics.profitPercent)}"
+              title="${escapeHtml(displayHoldingName(row))} · 평가비중 ${row.weight.toFixed(2)}% · 수익률 ${row.metrics.profitPercent.toFixed(2)}%"
+            >
+              <strong>${escapeHtml(name)}</strong>
+              <em class="${row.metrics.profitPercent >= 0 ? "up" : "down"}">${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
+              <small>${row.weight.toFixed(1)}% · ${formatMoney(row.metrics.value, row.metrics.currency)}</small>
             </article>
           `;
         })

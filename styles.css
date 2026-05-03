@@ -572,6 +572,15 @@ select:focus {
   min-height: 96px;
 }
 
+.treemap-tiles {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 32px;
+  grid-auto-flow: dense;
+  gap: 4px;
+  min-height: 0;
+}
+
 .heatmap-tile {
   flex: var(--tile-size) 1 86px;
   min-width: 70px;
@@ -590,6 +599,39 @@ select:focus {
   padding: 10px;
   text-align: center;
   overflow: hidden;
+}
+
+.treemap-tile {
+  grid-column: span var(--col-span);
+  grid-row: span var(--row-span);
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+}
+
+.treemap-tile.size-1,
+.treemap-tile.size-2 {
+  padding: 4px;
+}
+
+.treemap-tile.size-3,
+.treemap-tile.size-4 {
+  padding: 6px;
+}
+
+.treemap-tile.size-7 strong,
+.treemap-tile.size-8 strong,
+.treemap-tile.size-9 strong,
+.treemap-tile.size-10 strong {
+  font-size: clamp(22px, 3.2vw, 42px);
+}
+
+.treemap-tile.size-7 em,
+.treemap-tile.size-8 em,
+.treemap-tile.size-9 em,
+.treemap-tile.size-10 em {
+  font-size: clamp(18px, 2.3vw, 30px);
 }
 
 .heatmap-symbol,
@@ -682,6 +724,38 @@ select:focus {
 .heatmap-tile.tiny .heatmap-symbol i {
   width: 20px;
   height: 20px;
+}
+
+.treemap-tile.tiny strong {
+  display: block;
+  font-size: 10px;
+  line-height: 1.05;
+}
+
+.treemap-tile.tiny em {
+  font-size: 10px;
+}
+
+.treemap-tile.tiny small,
+.treemap-tile.small small {
+  display: none;
+}
+
+.treemap-tile.small strong {
+  display: block;
+  font-size: 12px;
+}
+
+.treemap-tile.small em {
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .treemap-tiles {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-auto-rows: 30px;
+  }
+
 }
 
 .dashboard-list,
