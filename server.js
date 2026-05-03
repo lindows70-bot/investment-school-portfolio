@@ -34,6 +34,52 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+function sendResetPage(res) {
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store, max-age=0, must-revalidate",
+  });
+  res.end(`<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>앱 캐시 초기화</title>
+    <style>
+      body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111513;color:#eef4ee;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      main{max-width:520px;padding:28px;text-align:center}
+      h1{font-size:24px;margin:0 0 10px}
+      p{color:#9ba89d;line-height:1.55}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>최신 버전으로 초기화 중</h1>
+      <p>아이폰에 남아 있는 예전 앱 캐시와 예전 포트폴리오 데이터를 지우고 있습니다.</p>
+    </main>
+    <script>
+      (async () => {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+          if ("serviceWorker" in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+          }
+          if ("caches" in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+          }
+        } catch (error) {
+          console.warn(error);
+        }
+        location.replace("/?v=" + Date.now());
+      })();
+    </script>
+  </body>
+</html>`);
+}
+
 function collectCookie(headers) {
   const setCookies = headers.getSetCookie?.() || [headers.get("set-cookie")].filter(Boolean);
   return setCookies.map((cookie) => cookie.split(";")[0]).join("; ");
@@ -494,6 +540,11 @@ async function handleApi(req, res, url) {
 http
   .createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${port}`);
+    if (url.pathname === "/reset" || url.searchParams.has("reset") || url.searchParams.has("clearData")) {
+      sendResetPage(res);
+      return;
+    }
+
     if (url.pathname.startsWith("/api/")) {
       handleApi(req, res, url);
       return;
