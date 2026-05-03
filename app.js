@@ -9,6 +9,8 @@ const MARKET_SYMBOLS = [
 
 const STORAGE_KEY = "portfolio-pulse-holdings";
 const WATCHLIST_KEY = "portfolio-pulse-watchlist";
+const TRANSACTIONS_KEY = "portfolio-pulse-transactions";
+const SNAPSHOTS_KEY = "portfolio-pulse-snapshots";
 const quoteCache = new Map();
 const financialCache = new Map();
 let fxRate = { usdKrw: 1350, updatedAt: null, source: "fallback" };
@@ -18,6 +20,8 @@ let selectedRange = { range: "1d", interval: "5m" };
 let researchRange = { range: "1d", interval: "5m" };
 let holdings = loadHoldings();
 let watchlistItems = loadWatchlist();
+let transactions = loadTransactions();
+let assetSnapshots = loadSnapshots();
 
 const el = {
   clock: document.querySelector("#clock"),
@@ -63,6 +67,16 @@ const el = {
   dashboardMix: document.querySelector("#dashboardMix"),
   dashboardBrief: document.querySelector("#dashboardBrief"),
   portfolioRows: document.querySelector("#portfolioRows"),
+  transactionForm: document.querySelector("#transactionForm"),
+  transactionRows: document.querySelector("#transactionRows"),
+  flowTotalAssets: document.querySelector("#flowTotalAssets"),
+  flowRealizedPnl: document.querySelector("#flowRealizedPnl"),
+  flowSellAmount: document.querySelector("#flowSellAmount"),
+  flowTradeCount: document.querySelector("#flowTradeCount"),
+  assetFlowChart: document.querySelector("#assetFlowChart"),
+  realizedPnlChart: document.querySelector("#realizedPnlChart"),
+  monthlyFlowRows: document.querySelector("#monthlyFlowRows"),
+  yearlyFlowRows: document.querySelector("#yearlyFlowRows"),
   lynchCount: document.querySelector("#lynchCount"),
   lynchAvgPeg: document.querySelector("#lynchAvgPeg"),
   lynchGoodPeg: document.querySelector("#lynchGoodPeg"),
@@ -172,6 +186,36 @@ function loadWatchlist() {
 
 function saveWatchlist() {
   localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlistItems));
+}
+
+function loadTransactions() {
+  const saved = localStorage.getItem(TRANSACTIONS_KEY);
+  if (!saved) return [];
+  try {
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveTransactions() {
+  localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(transactions));
+}
+
+function loadSnapshots() {
+  const saved = localStorage.getItem(SNAPSHOTS_KEY);
+  if (!saved) return [];
+  try {
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSnapshots() {
+  localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(assetSnapshots.slice(-240)));
 }
 
 function getKnownSymbol(symbol) {
@@ -383,6 +427,36 @@ function convertAmount(value, fromCurrency = "USD", toCurrency = "KRW") {
   if (fromCurrency === "USD" && toCurrency === "KRW") return value * fxRate.usdKrw;
   if (fromCurrency === "KRW" && toCurrency === "USD") return value / fxRate.usdKrw;
   return value;
+}
+
+function todayKey() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function monthKey(dateValue) {
+  return String(dateValue || todayKey()).slice(0, 7);
+}
+
+function yearKey(dateValue) {
+  return String(dateValue || todayKey()).slice(0, 4);
+}
+
+function findHoldingIndex(symbol) {
+  const normalized = normalizeSymbol(symbol);
+  return holdings.findIndex((holding) => normalizeSymbol(holding.symbol) === normalized);
+}
+
+function getHoldingCostBasis(symbol, fallbackCurrency = "KRW") {
+  const index = findHoldingIndex(symbol);
+  const holding = index >= 0 ? holdings[index] : null;
+  return {
+    index,
+    holding,
+    qty: Number(holding?.qty || 0),
+    avgPrice: Number(holding?.avgPrice || 0),
+    currency: holding?.currency || fallbackCurrency,
+  };
 }
 
 function getHoldingCurrency(holding, quote) {
@@ -1046,6 +1120,8 @@ async function renderPortfolio() {
   el.totalReturn.textContent = `${totalReturn.toFixed(2)}%`;
   el.totalReturn.className = totalReturn >= 0 ? "up-text" : "down-text";
   renderPortfolioDashboard(quoteResults);
+  recordPortfolioSnapshot(buildPortfolioMetrics(quoteResults));
+  renderFlowDashboard();
 }
 
 function buildPortfolioMetrics(quoteResults = []) {
@@ -1356,6 +1432,306 @@ function renderDashboardBriefByAsset(summary) {
     <article><strong>집중도</strong><span>${concentration}</span></article>
     <article><strong>환율</strong><span>USD/KRW ${formatNumber(fxRate.usdKrw, 2)} 기준으로 원화 평가금액을 계산했습니다.</span></article>
   `;
+}
+
+function recordPortfolioSnapshot(summary) {
+  if (!summary) return;
+  const date = todayKey();
+  const snapshot = {
+    date,
+    totalValueKrw: Number(summary.totalValueKrw || 0),
+    totalCostKrw: Number(summary.totalCostKrw || 0),
+    totalProfitKrw: Number(summary.totalProfitKrw || 0),
+    totalReturn: Number(summary.totalReturn || 0),
+    positionCount: Number(summary.rows?.length || 0),
+  };
+  assetSnapshots = assetSnapshots.filter((item) => item.date !== date).concat(snapshot).slice(-240);
+  saveSnapshots();
+}
+
+function groupTransactions(period = "month") {
+  const groups = new Map();
+  transactions.forEach((tx) => {
+    const key = period === "year" ? yearKey(tx.date) : monthKey(tx.date);
+    const current =
+      groups.get(key) || {
+        key,
+        buyKrw: 0,
+        sellKrw: 0,
+        realizedProfitKrw: 0,
+        count: 0,
+      };
+    if (tx.type === "buy") current.buyKrw += Number(tx.grossKrw || 0);
+    if (tx.type === "sell") current.sellKrw += Number(tx.grossKrw || 0);
+    current.realizedProfitKrw += Number(tx.realizedProfitKrw || 0);
+    current.count += 1;
+    groups.set(key, current);
+  });
+  return [...groups.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function latestSnapshotsByMonth() {
+  const groups = new Map();
+  assetSnapshots.forEach((snapshot) => {
+    const key = monthKey(snapshot.date);
+    const current = groups.get(key);
+    if (!current || snapshot.date >= current.date) groups.set(key, snapshot);
+  });
+  return [...groups.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function latestSnapshotsByYear() {
+  const groups = new Map();
+  assetSnapshots.forEach((snapshot) => {
+    const key = yearKey(snapshot.date);
+    const current = groups.get(key);
+    if (!current || snapshot.date >= current.date) groups.set(key, snapshot);
+  });
+  return [...groups.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function renderFlowDashboard() {
+  if (!el.flowTotalAssets) return;
+  const latest = assetSnapshots.at(-1);
+  const realizedTotal = transactions.reduce((sum, tx) => sum + Number(tx.realizedProfitKrw || 0), 0);
+  const sellTotal = transactions.filter((tx) => tx.type === "sell").reduce((sum, tx) => sum + Number(tx.grossKrw || 0), 0);
+  setText(el.flowTotalAssets, formatMoney(latest?.totalValueKrw || 0, "KRW"));
+  setText(el.flowRealizedPnl, formatMoney(realizedTotal, "KRW"));
+  setText(el.flowSellAmount, formatMoney(sellTotal, "KRW"));
+  setText(el.flowTradeCount, `${transactions.length}건`);
+  el.flowRealizedPnl.className = realizedTotal >= 0 ? "up-text" : "down-text";
+  drawAssetFlowChart();
+  drawRealizedPnlChart();
+  renderFlowTables();
+  renderTransactions();
+}
+
+function renderFlowTables() {
+  const renderRows = (items, snapshots, emptyText) => {
+    if (!items.length && !snapshots.length) {
+      return `<tr><td colspan="6" class="muted">${emptyText}</td></tr>`;
+    }
+    const snapshotMap = new Map(snapshots.map((snapshot) => [snapshot.date.length === 10 ? monthKey(snapshot.date) : snapshot.date, snapshot]));
+    const keys = [...new Set([...items.map((item) => item.key), ...snapshots.map((snapshot) => (snapshot.date.length === 10 ? monthKey(snapshot.date) : snapshot.date))])].sort();
+    return keys
+      .map((key) => {
+        const flow = items.find((item) => item.key === key) || { buyKrw: 0, sellKrw: 0, realizedProfitKrw: 0, count: 0 };
+        const snapshot = snapshotMap.get(key);
+        return `
+          <tr>
+            <td>${escapeHtml(key)}</td>
+            <td>${formatMoney(flow.buyKrw, "KRW")}</td>
+            <td>${formatMoney(flow.sellKrw, "KRW")}</td>
+            <td><span class="${flow.realizedProfitKrw >= 0 ? "up-text" : "down-text"}">${formatMoney(flow.realizedProfitKrw, "KRW")}</span></td>
+            <td>${formatMoney(snapshot?.totalValueKrw || 0, "KRW")}</td>
+            <td>${flow.count}건</td>
+          </tr>
+        `;
+      })
+      .join("");
+  };
+  if (el.monthlyFlowRows) {
+    el.monthlyFlowRows.innerHTML = renderRows(groupTransactions("month"), latestSnapshotsByMonth(), "월별 거래 기록이 없습니다.");
+  }
+  if (el.yearlyFlowRows) {
+    const yearlySnapshots = latestSnapshotsByYear().map((snapshot) => ({ ...snapshot, date: yearKey(snapshot.date) }));
+    el.yearlyFlowRows.innerHTML = renderRows(groupTransactions("year"), yearlySnapshots, "연간 거래 기록이 없습니다.");
+  }
+}
+
+function renderTransactions() {
+  if (!el.transactionRows) return;
+  if (!transactions.length) {
+    el.transactionRows.innerHTML = `<tr><td colspan="8" class="muted">매수/매도 거래를 입력하면 실현손익 기록이 쌓입니다.</td></tr>`;
+    return;
+  }
+  el.transactionRows.innerHTML = transactions
+    .slice()
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .map(
+      (tx) => `
+        <tr>
+          <td>${escapeHtml(tx.date)}</td>
+          <td><span class="trade-pill ${tx.type}">${tx.type === "buy" ? "매수" : "매도"}</span></td>
+          <td><strong>${escapeHtml(tx.name || tx.symbol)}</strong><br><span class="muted">${escapeHtml(tx.symbol)}</span></td>
+          <td>${formatNumber(Number(tx.qty || 0), 6)}</td>
+          <td>${formatMoney(Number(tx.price || 0), tx.currency)}</td>
+          <td>${formatMoney(Number(tx.gross || 0), tx.currency)}</td>
+          <td><span class="${Number(tx.realizedProfitKrw || 0) >= 0 ? "up-text" : "down-text"}">${formatMoney(Number(tx.realizedProfitKrw || 0), "KRW")}</span></td>
+          <td><button class="delete-transaction" data-id="${escapeHtml(tx.id)}" title="거래 기록 삭제">×</button></td>
+        </tr>
+      `,
+    )
+    .join("");
+}
+
+function applyTransaction({ date, type, symbol, name, qty, price, currency }) {
+  const normalized = normalizeSymbol(symbol);
+  if (!normalized) throw new Error("심볼을 입력해 주세요.");
+  if (!Number.isFinite(qty) || qty <= 0) throw new Error("수량은 0보다 커야 합니다.");
+  if (!Number.isFinite(price) || price <= 0) throw new Error("거래단가는 0보다 커야 합니다.");
+  if (!["buy", "sell"].includes(type)) throw new Error("거래 구분을 확인해 주세요.");
+  const assetType = classifySymbol(normalized);
+  const gross = qty * price;
+  const grossKrw = convertAmount(gross, currency, "KRW");
+  const basis = getHoldingCostBasis(normalized, currency);
+  let realizedProfit = 0;
+  let realizedProfitKrw = 0;
+
+  if (type === "buy") {
+    const existing = basis.holding;
+    if (existing) {
+      const existingQty = Number(existing.qty || 0);
+      const existingCurrency = existing.currency || currency;
+      const existingCostKrw = convertAmount(existingQty * Number(existing.avgPrice || 0), existingCurrency, "KRW");
+      const nextQty = existingQty + qty;
+      const nextAvgKrw = nextQty ? (existingCostKrw + grossKrw) / nextQty : 0;
+      existing.qty = nextQty;
+      existing.avgPrice = convertAmount(nextAvgKrw, "KRW", existingCurrency);
+      existing.name = existing.name || name;
+    } else {
+      holdings = holdings.concat({ symbol: normalized, name, qty, avgPrice: price, currency });
+    }
+  } else {
+    if (!basis.holding || basis.qty < qty) {
+      throw new Error("매도 수량이 현재 보유 수량보다 많습니다.");
+    }
+    const avgInTradeCurrency = convertAmount(basis.avgPrice, basis.currency, currency);
+    realizedProfit = (price - avgInTradeCurrency) * qty;
+    realizedProfitKrw = convertAmount(realizedProfit, currency, "KRW");
+    basis.holding.qty = Math.max(0, basis.qty - qty);
+    if (basis.holding.qty === 0) holdings.splice(basis.index, 1);
+  }
+
+  const tx = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    date,
+    type,
+    symbol: normalized,
+    name,
+    qty,
+    price,
+    currency,
+    assetType,
+    gross,
+    grossKrw,
+    realizedProfit,
+    realizedProfitKrw,
+    fxRate: fxRate.usdKrw,
+  };
+  transactions = transactions.concat(tx);
+  saveTransactions();
+  saveHoldings();
+  return tx;
+}
+
+function drawAssetFlowChart() {
+  const canvas = el.assetFlowChart;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  const points = latestSnapshotsByMonth().map((snapshot) => ({ label: monthKey(snapshot.date), value: snapshot.totalValueKrw }));
+  drawLineSeries(ctx, width, height, points, "총 자산", "#75d37b");
+}
+
+function drawRealizedPnlChart() {
+  const canvas = el.realizedPnlChart;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  const points = groupTransactions("month").map((item) => ({ label: item.key, value: item.realizedProfitKrw }));
+  drawBarSeries(ctx, width, height, points);
+}
+
+function drawLineSeries(ctx, width, height, points, title, color) {
+  ctx.fillStyle = "#101713";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "rgba(242,247,239,0.9)";
+  ctx.font = "700 16px sans-serif";
+  ctx.fillText(title, 18, 28);
+  if (!points.length) {
+    ctx.fillStyle = "rgba(242,247,239,0.55)";
+    ctx.fillText("스냅샷 데이터가 아직 없습니다.", 18, height / 2);
+    return;
+  }
+  const values = points.map((point) => point.value);
+  const min = Math.min(...values, 0);
+  const max = Math.max(...values, 1);
+  const range = max - min || 1;
+  const left = 54;
+  const right = width - 22;
+  const top = 48;
+  const bottom = height - 42;
+  ctx.strokeStyle = "rgba(242,247,239,0.12)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i += 1) {
+    const y = top + ((bottom - top) / 3) * i;
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const x = points.length === 1 ? left : left + ((right - left) / (points.length - 1)) * index;
+    const y = bottom - ((point.value - min) / range) * (bottom - top);
+    if (index) ctx.lineTo(x, y);
+    else ctx.moveTo(x, y);
+  });
+  ctx.stroke();
+  points.forEach((point, index) => {
+    const x = points.length === 1 ? left : left + ((right - left) / (points.length - 1)) * index;
+    const y = bottom - ((point.value - min) / range) * (bottom - top);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(242,247,239,0.62)";
+    ctx.font = "11px sans-serif";
+    ctx.fillText(point.label.slice(2), x - 14, height - 16);
+  });
+}
+
+function drawBarSeries(ctx, width, height, points) {
+  ctx.fillStyle = "#101713";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "rgba(242,247,239,0.9)";
+  ctx.font = "700 16px sans-serif";
+  ctx.fillText("월별 실현손익", 18, 28);
+  if (!points.length) {
+    ctx.fillStyle = "rgba(242,247,239,0.55)";
+    ctx.fillText("매도 거래를 입력하면 월별 손익이 표시됩니다.", 18, height / 2);
+    return;
+  }
+  const maxAbs = Math.max(...points.map((point) => Math.abs(point.value)), 1);
+  const left = 46;
+  const right = width - 22;
+  const top = 48;
+  const bottom = height - 42;
+  const zeroY = top + (bottom - top) / 2;
+  const barWidth = Math.max(12, (right - left) / points.length - 10);
+  ctx.strokeStyle = "rgba(242,247,239,0.24)";
+  ctx.beginPath();
+  ctx.moveTo(left, zeroY);
+  ctx.lineTo(right, zeroY);
+  ctx.stroke();
+  points.forEach((point, index) => {
+    const x = left + ((right - left) / points.length) * index + 5;
+    const heightRatio = Math.abs(point.value) / maxAbs;
+    const barHeight = heightRatio * ((bottom - top) / 2 - 10);
+    const y = point.value >= 0 ? zeroY - barHeight : zeroY;
+    ctx.fillStyle = point.value >= 0 ? "#75d37b" : "#ff6b6b";
+    ctx.fillRect(x, y, barWidth, barHeight);
+    ctx.fillStyle = "rgba(242,247,239,0.62)";
+    ctx.font = "11px sans-serif";
+    ctx.fillText(point.label.slice(2), x, height - 16);
+  });
 }
 
 function drawAllocationChart(rows) {
@@ -1893,6 +2269,7 @@ function bindEvents() {
       setSearchVisibility(button.dataset.view);
       if (button.dataset.view === "dashboard") renderPortfolio();
       if (button.dataset.view === "portfolio") renderPortfolio();
+      if (button.dataset.view === "flow") renderFlowDashboard();
       if (button.dataset.view === "lynch") renderLynchAnalysis();
       if (button.dataset.view === "buffett") renderBuffettAnalysis();
     });
@@ -1998,6 +2375,47 @@ function bindEvents() {
     document.querySelector("#holdingCurrency").value = suggestedHoldingCurrency(event.target.value);
   });
 
+  el.transactionForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    try {
+      applyTransaction({
+        date: form.querySelector("#tradeDate").value || todayKey(),
+        type: form.querySelector("#tradeType").value,
+        symbol: form.querySelector("#tradeSymbol").value,
+        name: form.querySelector("#tradeName").value.trim() || form.querySelector("#tradeSymbol").value.trim(),
+        qty: Number(form.querySelector("#tradeQty").value),
+        price: Number(form.querySelector("#tradePrice").value),
+        currency: form.querySelector("#tradeCurrency").value,
+      });
+      form.reset();
+      form.querySelector("#tradeDate").value = todayKey();
+      await renderSelectedQuote();
+      renderFlowDashboard();
+      if (isLynchViewActive()) await renderLynchAnalysis();
+      if (isBuffettViewActive()) await renderBuffettAnalysis();
+    } catch (error) {
+      alert(error.message || "거래를 저장하지 못했습니다.");
+    }
+  });
+
+  document.querySelector("#tradeSymbol")?.addEventListener("change", (event) => {
+    const symbol = normalizeSymbol(event.target.value);
+    const known = getKnownSymbol(symbol);
+    const nameInput = document.querySelector("#tradeName");
+    const currencyInput = document.querySelector("#tradeCurrency");
+    if (nameInput && !nameInput.value && known?.name) nameInput.value = known.name;
+    if (currencyInput) currencyInput.value = suggestedHoldingCurrency(symbol);
+  });
+
+  el.transactionRows?.addEventListener("click", async (event) => {
+    const button = event.target.closest(".delete-transaction");
+    if (!button) return;
+    transactions = transactions.filter((tx) => tx.id !== button.dataset.id);
+    saveTransactions();
+    renderFlowDashboard();
+  });
+
   el.portfolioRows.addEventListener("click", async (event) => {
     const moveButton = event.target.closest(".move-row");
     if (moveButton) {
@@ -2065,6 +2483,8 @@ async function init() {
   tickClock();
   setInterval(tickClock, 1000);
   document.querySelector("#symbolInput").value = selectedSymbol;
+  const tradeDate = document.querySelector("#tradeDate");
+  if (tradeDate && !tradeDate.value) tradeDate.value = todayKey();
   await refreshWatchlist();
   await renderSelectedQuote();
   setInterval(async () => {

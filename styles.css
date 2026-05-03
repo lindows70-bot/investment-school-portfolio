@@ -1018,6 +1018,46 @@ canvas {
   margin-bottom: 18px;
 }
 
+.flow-trade-panel {
+  padding: 20px;
+}
+
+.transaction-form {
+  display: grid;
+  grid-template-columns: 140px 90px 1fr 1.2fr 0.8fr 0.8fr 90px 82px;
+  gap: 10px;
+}
+
+.trade-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.trade-pill.buy {
+  background: rgba(117, 211, 123, 0.16);
+  color: var(--good);
+}
+
+.trade-pill.sell {
+  background: rgba(255, 107, 107, 0.16);
+  color: var(--danger);
+}
+
+.delete-transaction {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--danger);
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -1193,6 +1233,7 @@ th {
   }
 
   .holding-form,
+  .transaction-form,
   .guide-grid,
   .mini-chart-list,
   .research-notes,
@@ -1218,6 +1259,7 @@ th {
 
   .symbol-search,
   .holding-form,
+  .transaction-form,
   .guide-grid,
   .mini-chart-list,
   .metrics-grid,

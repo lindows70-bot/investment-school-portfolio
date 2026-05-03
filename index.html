@@ -9,10 +9,10 @@
       content="미국주식, 한국주식, 암호화폐 시세와 포트폴리오 수익률을 관리하는 주식학교용 웹앱"
     />
     <title>투자학교 포트폴리오 (Get Rich Slowly)</title>
-    <link rel="manifest" href="./manifest.webmanifest?v=24" />
+    <link rel="manifest" href="./manifest.webmanifest?v=25" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icon.svg" />
-    <link rel="stylesheet" href="./styles.css?v=24" />
+    <link rel="stylesheet" href="./styles.css?v=25" />
   </head>
   <body>
     <div class="app-shell">
@@ -39,6 +39,9 @@
           </button>
           <button class="nav-tab" data-view="portfolio" title="포트폴리오">
             <span class="icon">P</span><span>포트폴리오</span>
+          </button>
+          <button class="nav-tab" data-view="flow" title="자산흐름">
+            <span class="icon">F</span><span>자산흐름</span>
           </button>
           <button class="nav-tab" data-view="research" title="종목 리서치">
             <span class="icon">S</span><span>종목 리서치</span>
@@ -252,6 +255,133 @@
                 <tbody id="portfolioRows"></tbody>
               </table>
             </div>
+          </section>
+        </section>
+
+        <section id="flowView" class="view">
+          <section class="dashboard-overview">
+            <section class="dashboard-hero-panel">
+              <div>
+                <p class="eyebrow">ASSET FLOW DASHBOARD</p>
+                <h2>매수·매도 손익과 자산흐름</h2>
+                <p>거래 기록을 기준으로 실현손익, 월별·연간 매수/매도 금액, 현재 총 자산 스냅샷을 함께 추적합니다.</p>
+              </div>
+              <div class="dashboard-hero-metrics">
+                <div><span>현재 총 자산</span><strong id="flowTotalAssets">-</strong></div>
+                <div><span>누적 실현손익</span><strong id="flowRealizedPnl">-</strong></div>
+                <div><span>누적 매도금액</span><strong id="flowSellAmount">-</strong></div>
+                <div><span>거래 기록</span><strong id="flowTradeCount">0건</strong></div>
+              </div>
+            </section>
+
+            <section class="panel flow-trade-panel">
+              <div class="section-title">
+                <h2>거래 입력</h2>
+                <span class="muted">매도 시 현재 평균단가 기준 실현손익 계산</span>
+              </div>
+              <form id="transactionForm" class="transaction-form">
+                <input id="tradeDate" type="date" required />
+                <select id="tradeType">
+                  <option value="buy">매수</option>
+                  <option value="sell">매도</option>
+                </select>
+                <input id="tradeSymbol" placeholder="심볼" required />
+                <input id="tradeName" placeholder="종목명" />
+                <input id="tradeQty" type="number" min="0" step="0.000001" placeholder="수량" required />
+                <input id="tradePrice" type="number" min="0" step="0.01" placeholder="거래단가" required />
+                <select id="tradeCurrency">
+                  <option value="USD">USD</option>
+                  <option value="KRW">KRW</option>
+                </select>
+                <button type="submit">기록</button>
+              </form>
+            </section>
+
+            <section class="dashboard-grid">
+              <div class="panel dashboard-panel">
+                <div class="section-title">
+                  <h2>총 자산 흐름</h2>
+                  <span class="muted">월말 스냅샷 기준</span>
+                </div>
+                <canvas id="assetFlowChart" width="640" height="360"></canvas>
+              </div>
+              <div class="panel dashboard-panel">
+                <div class="section-title">
+                  <h2>월별 실현손익</h2>
+                  <span class="muted">매도 거래 기준</span>
+                </div>
+                <canvas id="realizedPnlChart" width="640" height="360"></canvas>
+              </div>
+            </section>
+
+            <section class="dashboard-grid lower">
+              <div class="panel dashboard-panel">
+                <div class="section-title">
+                  <h2>월별 자산흐름</h2>
+                  <span class="muted">매수·매도·실현손익</span>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>월</th>
+                        <th>매수</th>
+                        <th>매도</th>
+                        <th>실현손익</th>
+                        <th>총 자산</th>
+                        <th>거래</th>
+                      </tr>
+                    </thead>
+                    <tbody id="monthlyFlowRows"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="panel dashboard-panel">
+                <div class="section-title">
+                  <h2>연간 자산흐름</h2>
+                  <span class="muted">투자 성과 요약</span>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>연도</th>
+                        <th>매수</th>
+                        <th>매도</th>
+                        <th>실현손익</th>
+                        <th>총 자산</th>
+                        <th>거래</th>
+                      </tr>
+                    </thead>
+                    <tbody id="yearlyFlowRows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel dashboard-panel">
+              <div class="section-title">
+                <h2>거래 내역</h2>
+                <span class="muted">이 기기에 저장된 기록</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>일자</th>
+                      <th>구분</th>
+                      <th>종목</th>
+                      <th>수량</th>
+                      <th>단가</th>
+                      <th>거래금액</th>
+                      <th>실현손익</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="transactionRows"></tbody>
+                </table>
+              </div>
+            </section>
           </section>
         </section>
 
@@ -498,6 +628,6 @@
       </main>
     </div>
 
-    <script src="./app.js?v=24"></script>
+    <script src="./app.js?v=25"></script>
   </body>
 </html>
