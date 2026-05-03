@@ -1218,7 +1218,7 @@ function renderPortfolioDashboard(quoteResults = []) {
   el.dashboardTotalReturn?.classList.toggle("up-text", summary.totalReturn >= 0);
 
   renderDashboardLeadersAll(rows);
-  renderDashboardHeatmap(rows);
+  renderDashboardHeatmapUnified(rows);
   renderDashboardMiniChartsByAsset(rows);
   renderDashboardMix(rows);
   drawAllocationChart(rows);
@@ -1405,6 +1405,40 @@ function renderDashboardHeatmap(rows) {
       `,
     )
     .join("");
+}
+
+function renderDashboardHeatmapUnified(rows) {
+  if (!el.dashboardHeatmap) return;
+  if (!rows.length) {
+    el.dashboardHeatmap.innerHTML = `<p class="empty-note">포트폴리오 종목을 추가하면 히트맵이 표시됩니다.</p>`;
+    return;
+  }
+  const sortedRows = rows.slice().sort((a, b) => b.metrics.valueKrw - a.metrics.valueKrw);
+  el.dashboardHeatmap.innerHTML = `
+    <div class="heatmap-tiles">
+      ${sortedRows
+        .map((row) => {
+          const weight = Math.max(row.weight, 2);
+          const tileClass = weight >= 18 ? "large" : weight >= 8 ? "medium" : weight >= 4 ? "small" : "tiny";
+          const tileSize = Math.max(tileClass === "tiny" ? 70 : 92, weight * 20);
+          const height = Math.max(tileClass === "tiny" ? 64 : 76, Math.min(170, 64 + Math.sqrt(weight) * 22));
+          const initial = (displayHoldingName(row) || row.symbol).slice(0, 1).toUpperCase();
+          return `
+            <article
+              class="heatmap-tile ${tileClass}"
+              style="--tile-size:${tileSize}; --tile-height:${height}px; --heat-color:${heatmapColor(row.metrics.profitPercent)}"
+              title="${escapeHtml(displayHoldingName(row))} ${row.metrics.profitPercent.toFixed(2)}%"
+            >
+              <span class="heatmap-symbol"><i>${escapeHtml(initial)}</i>${escapeHtml(row.symbol)}</span>
+              <strong>${escapeHtml(displayHoldingName(row))}</strong>
+              <em class="${row.metrics.profitPercent >= 0 ? "up" : "down"}">${row.metrics.profitPercent >= 0 ? "+" : ""}${row.metrics.profitPercent.toFixed(2)}%</em>
+              <small>평가비중 ${row.weight.toFixed(1)}% · ${formatMoney(row.metrics.value, row.metrics.currency)}</small>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
 }
 
 function renderDashboardMiniChartsByAsset(rows) {
